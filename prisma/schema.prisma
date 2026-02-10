@@ -1,0 +1,246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Users
+// ============================================================
+
+model User {
+  id               Int      @id @default(autoincrement())
+  telegramId       BigInt   @unique
+  username         String?
+  firstName        String
+  lastName         String?
+  role             Role     @default(BOTH)
+  tonWalletAddress String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  channels        Channel[]
+  managedChannels ChannelManager[]
+  campaigns       Campaign[]
+  dealsAsAdvertiser Deal[] @relation("advertiser")
+  dealsAsOwner      Deal[] @relation("channelOwner")
+}
+
+enum Role {
+  ADVERTISER
+  CHANNEL_OWNER
+  BOTH
+}
+
+// ============================================================
+// Channels
+// ============================================================
+
+model Channel {
+  id              Int      @id @default(autoincrement())
+  telegramId      BigInt   @unique
+  username        String?
+  title           String
+  description     String?
+  subscriberCount Int      @default(0)
+  avgViewCount    Int      @default(0)
+  language        String?
+  premiumPercent  Float?
+  botIsAdmin      Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  ownerId         Int
+  owner           User     @relation(fields: [ownerId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  prices   ChannelPrice[]
+  managers ChannelManager[]
+  deals    Deal[]
+  stats    ChannelStats[]
+}
+
+// ============================================================
+// Channel Managers (PR Manager Flow)
+// ============================================================
+
+model ChannelManager {
+  id        Int      @id @default(autoincrement())
+  channelId Int
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  role      String   @default("manager") // "owner", "manager"
+  addedAt   DateTime @default(now())
+
+  @@unique([channelId, userId])
+}
+
+// ============================================================
+// Channel Prices
+// ============================================================
+
+model ChannelPrice {
+  id          Int      @id @default(autoincrement())
+  channelId   Int
+  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  format      String   // "post", "forward", "story" — free format
+  priceInTon  Float
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@unique([channelId, format])
+}
+
+// ============================================================
+// Channel Stats (snapshots for history)
+// ============================================================
+
+model ChannelStats {
+  id               Int      @id @default(autoincrement())
+  channelId        Int
+  channel          Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  subscriberCount  Int
+  avgViewCount     Int
+  sharesPerPost    Float?
+  reactionsPerPost Float?
+  premiumPercent   Float?
+  languageData     Json?    // { "ru": 45, "en": 30, ... }
+  rawData          Json?    // Full stats.getBroadcastStats data
+  fetchedAt        DateTime @default(now())
+}
+
+// ============================================================
+// Campaigns (advertiser requests / briefs)
+// ============================================================
+
+model Campaign {
+  id             Int            @id @default(autoincrement())
+  advertiserId   Int
+  advertiser     User           @relation(fields: [advertiserId], references: [id])
+  title          String
+  description    String
+  budgetPerPost  Float
+  targetLanguage String?
+  minSubscribers Int?
+  minAvgViews    Int?
+  status         CampaignStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  deals Deal[]
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================================
+// Deals
+// ============================================================
+
+model Deal {
+  id             Int        @id @default(autoincrement())
+  channelId      Int
+  channel        Channel    @relation(fields: [channelId], references: [id])
+  campaignId     Int?
+  campaign       Campaign?  @relation(fields: [campaignId], references: [id])
+  advertiserId   Int
+  advertiser     User       @relation("advertiser", fields: [advertiserId], references: [id])
+  channelOwnerId Int
+  channelOwner   User       @relation("channelOwner", fields: [channelOwnerId], references: [id])
+  initiatedBy    String     @default("advertiser") // "advertiser" | "channel_owner"
+  format         String     @default("post")
+  priceInTon     Float
+  status         DealStatus @default(PENDING)
+
+  // Escrow (address for quick access, keys in EscrowWallet)
+  escrowAddress String?
+
+  // Payment
+  paidAt     DateTime?
+  paidTxHash String?
+
+  // Creative
+  brief               String?
+  creativeText         String?
+  creativeMediaType    String?  // "photo", "video", "document", null
+  creativeMediaFileId  String?  // Telegram file_id
+  creativeApproved     Boolean  @default(false)
+  editComment          String?  // Comment when requesting edits
+
+  // Posting
+  scheduledAt     DateTime?
+  postedAt        DateTime?
+  postMessageId   Int?
+  postContentHash String?   // SHA-256 hash of content at publish time
+  postVerifiedAt  DateTime?
+  postDeletedAt   DateTime?
+  postEditedAt    DateTime?
+
+  // Payout
+  payoutTxHash String?
+  paidOutAt    DateTime?
+  refundTxHash String?
+  refundedAt   DateTime?
+
+  // Timing
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  expiresAt DateTime?
+
+  escrowWallet EscrowWallet?
+  events       DealEvent[]
+}
+
+enum DealStatus {
+  PENDING
+  ACCEPTED
+  AWAITING_PAYMENT
+  FUNDED
+  CREATIVE_DRAFT
+  CREATIVE_REVIEW
+  CREATIVE_APPROVED
+  SCHEDULED
+  POSTED
+  VERIFIED
+  COMPLETED
+  REFUNDED
+  CANCELLED
+  DISPUTED
+  EXPIRED
+}
+
+// ============================================================
+// Escrow Wallet (separate table for key security)
+// ============================================================
+
+model EscrowWallet {
+  id           Int      @id @default(autoincrement())
+  dealId       Int      @unique
+  deal         Deal     @relation(fields: [dealId], references: [id])
+  address      String
+  publicKey    String
+  secretKeyEnc String   // AES-256-GCM encrypted
+  secretKeyIv  String   // Initialization vector
+  secretKeyTag String   // GCM auth tag
+  createdAt    DateTime @default(now())
+}
+
+// ============================================================
+// Deal Events (activity log / timeline)
+// ============================================================
+
+model DealEvent {
+  id        Int      @id @default(autoincrement())
+  dealId    Int
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  type      String   // "status_change", "payment", "message", "post_edit", "post_delete"
+  data      Json?
+  createdAt DateTime @default(now())
+}

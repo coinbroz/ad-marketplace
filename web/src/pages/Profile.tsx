@@ -1,0 +1,141 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Section, Cell, Badge, Button, Input, Placeholder } from '@telegram-apps/telegram-ui';
+import { getMe, updateWallet, addChannel, setChannelPrices } from '../api/client';
+import type { User } from '../types';
+import { useState } from 'react';
+
+interface Props {
+  user: User | null;
+}
+
+export function ProfilePage({ user }: Props) {
+  const queryClient = useQueryClient();
+  const [walletAddress, setWalletAddress] = useState('');
+  const [newChannelUsername, setNewChannelUsername] = useState('');
+
+  const { data: me, isLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn: getMe,
+  });
+
+  const walletMutation = useMutation({
+    mutationFn: () => updateWallet(walletAddress),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] });
+      setWalletAddress('');
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    },
+    onError: (err: Error) => {
+      window.Telegram?.WebApp?.showAlert?.(err.message);
+    },
+  });
+
+  const addChannelMutation = useMutation({
+    mutationFn: () => addChannel(newChannelUsername.replace('@', '')),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] });
+      setNewChannelUsername('');
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    },
+    onError: (err: Error) => {
+      window.Telegram?.WebApp?.showAlert?.(err.message);
+    },
+  });
+
+  if (isLoading) return <Placeholder description="Loading profile..." />;
+  if (!me) return <Placeholder description="Please authenticate" />;
+
+  return (
+    <div>
+      <Section header="Profile">
+        <Cell subtitle="Name">{me.firstName} {me.lastName || ''}</Cell>
+        {me.username && <Cell subtitle="Username">@{me.username}</Cell>}
+        <Cell subtitle="Role">{me.role}</Cell>
+        <Cell subtitle="Telegram ID">{me.telegramId}</Cell>
+      </Section>
+
+      <Section header="TON Wallet">
+        {me.tonWalletAddress ? (
+          <Cell subtitle="Connected wallet">
+            <span style={{ fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+              {me.tonWalletAddress}
+            </span>
+          </Cell>
+        ) : (
+          <>
+            <Input
+              placeholder="Enter TON wallet address"
+              value={walletAddress}
+              onChange={(e) => setWalletAddress(e.target.value)}
+            />
+            <div style={{ padding: '8px 0' }}>
+              <Button
+                size="l"
+                stretched
+                onClick={() => walletMutation.mutate()}
+                disabled={!walletAddress}
+                loading={walletMutation.isPending}
+              >
+                Connect Wallet
+              </Button>
+            </div>
+          </>
+        )}
+      </Section>
+
+      <Section header="My Channels">
+        {me.channels?.length === 0 && (
+          <Placeholder description="No channels added yet" />
+        )}
+        {me.channels?.map((channel) => (
+          <Cell
+            key={channel.id}
+            subtitle={`${channel.subscriberCount.toLocaleString()} subscribers`}
+            after={
+              channel.botIsAdmin
+                ? <Badge type="dot" />
+                : <span style={{ fontSize: 12, color: '#d9534f' }}>Bot not admin</span>
+            }
+          >
+            {channel.title}
+          </Cell>
+        ))}
+
+        <div style={{ padding: '8px 0' }}>
+          <Input
+            placeholder="@channel_username"
+            value={newChannelUsername}
+            onChange={(e) => setNewChannelUsername(e.target.value)}
+          />
+          <div style={{ padding: '8px 0' }}>
+            <Button
+              size="l"
+              stretched
+              mode="outline"
+              onClick={() => addChannelMutation.mutate()}
+              disabled={!newChannelUsername}
+              loading={addChannelMutation.isPending}
+            >
+              Add Channel
+            </Button>
+          </div>
+        </div>
+      </Section>
+
+      <Section header="My Campaigns">
+        {me.campaigns?.length === 0 && (
+          <Placeholder description="No campaigns created yet" />
+        )}
+        {me.campaigns?.map((campaign) => (
+          <Cell
+            key={campaign.id}
+            subtitle={`${campaign.budgetPerPost} TON per post`}
+            after={<span style={{ fontSize: 12 }}>{campaign.status}</span>}
+          >
+            {campaign.title}
+          </Cell>
+        ))}
+      </Section>
+    </div>
+  );
+}

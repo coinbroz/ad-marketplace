@@ -1,0 +1,46 @@
+{
+  "name": "ad-marketplace",
+  "version": "1.0.0",
+  "description": "Telegram Mini App for ad marketplace connecting channel owners and advertisers with TON escrow",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "test": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fastify": "^5.2.1",
+    "@fastify/static": "^8.1.0",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/jwt": "^9.0.3",
+    "@fastify/rate-limit": "^10.2.1",
+    "@prisma/client": "^6.3.1",
+    "grammy": "^1.34.0",
+    "@grammyjs/conversations": "^2.0.3",
+    "telegram": "^2.26.16",
+    "@ton/ton": "^15.1.0",
+    "@ton/crypto": "^3.3.0",
+    "@ton/core": "^0.62.0",
+    "bullmq": "^5.34.8",
+    "ioredis": "^5.4.2",
+    "zod": "^3.24.1",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.8",
+    "@types/node": "^22.12.0",
+    "prisma": "^6.3.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
