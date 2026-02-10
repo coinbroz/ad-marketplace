@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Section, Cell, Badge, Input, SegmentedControl } from '@telegram-apps/telegram-ui';
+import { Section, Cell, Badge, Input, SegmentedControl, Button } from '@telegram-apps/telegram-ui';
 import { getChannels, getCampaigns } from '../api/client';
 import type { User, Channel, Campaign } from '../types';
 
@@ -78,6 +78,15 @@ export function MarketplacePage({ user }: Props) {
 
       {tab === 'campaigns' && (
         <Section header="Active Campaigns">
+          <div style={{ padding: '8px 16px' }}>
+            <Button
+              size="l"
+              stretched
+              onClick={() => navigate('/campaigns/create')}
+            >
+              + Create Campaign
+            </Button>
+          </div>
           {campaignsQuery.isLoading && <Cell>Loading campaigns...</Cell>}
           {campaignsQuery.error && <Cell>Failed to load campaigns</Cell>}
           {campaignsQuery.data?.campaigns?.length === 0 && <Cell>No campaigns found</Cell>}

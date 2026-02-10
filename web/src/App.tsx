@@ -10,6 +10,7 @@ import { ChannelPage } from './pages/Channel';
 import { CampaignPage } from './pages/Campaign';
 import { ProfilePage } from './pages/Profile';
 import { PaymentPage } from './pages/Payment';
+import { CreateCampaignPage } from './pages/CreateCampaign';
 import type { User } from './types';
 
 function AppContent() {
@@ -75,6 +76,7 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<MarketplacePage user={user} />} />
         <Route path="/channels/:id" element={<ChannelPage user={user} />} />
+        <Route path="/campaigns/create" element={<CreateCampaignPage user={user} />} />
         <Route path="/campaigns/:id" element={<CampaignPage user={user} />} />
         <Route path="/deals" element={<DealsPage user={user} />} />
         <Route path="/deals/:id" element={<DealPage user={user} />} />
