@@ -54,10 +54,12 @@ export async function channelRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Not authorized' });
     }
 
-    return prisma.channel.update({
+    const updated = await prisma.channel.update({
       where: { id: channelId },
-      data: body,
+      data: { language: body.language, isActive: body.isActive },
+      include: { prices: true },
     });
+    return getChannelById(channelId);
   });
 
   // Delete channel
