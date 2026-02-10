@@ -9,6 +9,38 @@ interface Props {
   user: User | null;
 }
 
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: 'rgba(0,0,0,0.5)',
+  zIndex: 1000,
+  display: 'flex',
+  alignItems: 'flex-end',
+  justifyContent: 'center',
+};
+
+const panelStyle: React.CSSProperties = {
+  width: '100%',
+  maxHeight: '70vh',
+  background: 'var(--tg-theme-bg-color, #fff)',
+  borderRadius: '16px 16px 0 0',
+  overflow: 'auto',
+  paddingBottom: 16,
+};
+
+const chipStyle: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '2px 10px',
+  fontSize: 12,
+  borderRadius: 12,
+  background: 'var(--tg-theme-button-color, #3390ec)',
+  color: 'var(--tg-theme-button-text-color, #fff)',
+  whiteSpace: 'nowrap',
+};
+
 export function MarketplacePage({ user }: Props) {
   const navigate = useNavigate();
   const [tab, setTab] = useState<'channels' | 'campaigns'>('channels');
@@ -60,6 +92,27 @@ export function MarketplacePage({ user }: Props) {
 
   const hasActiveFilters = !!(minSubs || maxPrice || language || sortBy || minBudget || campLanguage);
 
+  const sortLabels: Record<string, string> = {
+    subscribers: 'Most Subs',
+    views: 'Most Views',
+    price_asc: 'Cheapest',
+    price_desc: 'Expensive',
+  };
+
+  // Active filter chips for channels
+  const channelChips: string[] = [];
+  if (minSubs) channelChips.push(`${Number(minSubs).toLocaleString()}+ subs`);
+  if (maxPrice) channelChips.push(`≤${maxPrice} TON`);
+  if (language) channelChips.push(language);
+  if (sortBy && sortLabels[sortBy]) channelChips.push(sortLabels[sortBy]);
+
+  // Active filter chips for campaigns
+  const campaignChips: string[] = [];
+  if (minBudget) campaignChips.push(`≥${minBudget} TON`);
+  if (campLanguage) campaignChips.push(campLanguage);
+
+  const activeChips = tab === 'channels' ? channelChips : campaignChips;
+
   return (
     <div>
       <Section header="Ad Marketplace">
@@ -85,88 +138,104 @@ export function MarketplacePage({ user }: Props) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div style={{ display: 'flex', gap: 8, padding: '4px 16px 8px' }}>
+        <div style={{ display: 'flex', gap: 8, padding: '4px 16px 8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <Button
             size="s"
-            mode={showFilters ? 'filled' : 'outline'}
-            onClick={() => setShowFilters(!showFilters)}
+            mode={hasActiveFilters ? 'filled' : 'outline'}
+            onClick={() => setShowFilters(true)}
           >
-            Filters{hasActiveFilters ? ' *' : ''}
+            Filters
           </Button>
           {hasActiveFilters && (
             <Button size="s" mode="outline" onClick={clearFilters}>
               Clear
             </Button>
           )}
+          {activeChips.map((chip, i) => (
+            <span key={i} style={chipStyle}>{chip}</span>
+          ))}
         </div>
       </Section>
 
-      {/* Channel Filters */}
-      {showFilters && tab === 'channels' && (
-        <Section header="Filter Channels">
-          <Input
-            header="Min Subscribers"
-            placeholder="e.g. 1000"
-            type="number"
-            value={minSubs}
-            onChange={(e) => setMinSubs(e.target.value)}
-          />
-          <Input
-            header="Max Price (TON)"
-            placeholder="e.g. 10"
-            type="number"
-            value={maxPrice}
-            onChange={(e) => setMaxPrice(e.target.value)}
-          />
-          <Input
-            header="Language"
-            placeholder="e.g. English, Russian"
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-          />
-          <div style={{ padding: '8px 16px' }}>
-            <select
-              style={{
-                width: '100%', padding: '10px', fontSize: '14px',
-                border: '1px solid var(--tg-theme-hint-color, #999)',
-                borderRadius: '8px',
-                background: 'var(--tg-theme-bg-color, #fff)',
-                color: 'var(--tg-theme-text-color, #000)',
-              }}
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              <option value="">Sort by: Default</option>
-              <option value="subscribers">Most Subscribers</option>
-              <option value="views">Most Views</option>
-              <option value="price_asc">Cheapest First</option>
-              <option value="price_desc">Most Expensive First</option>
-            </select>
+      {/* Filter Modal Overlay */}
+      {showFilters && (
+        <div style={overlayStyle} onClick={() => setShowFilters(false)}>
+          <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
+            {tab === 'channels' ? (
+              <Section header="Filter Channels">
+                <Input
+                  header="Min Subscribers"
+                  placeholder="e.g. 1000"
+                  type="number"
+                  value={minSubs}
+                  onChange={(e) => setMinSubs(e.target.value)}
+                />
+                <Input
+                  header="Max Price (TON)"
+                  placeholder="e.g. 10"
+                  type="number"
+                  step="0.1"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                />
+                <Input
+                  header="Language"
+                  placeholder="e.g. English, Russian"
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                />
+                <div style={{ padding: '8px 16px' }}>
+                  <select
+                    style={{
+                      width: '100%', padding: '10px', fontSize: '14px',
+                      border: '1px solid var(--tg-theme-hint-color, #999)',
+                      borderRadius: '8px',
+                      background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+                      color: 'var(--tg-theme-text-color, #000)',
+                    }}
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                  >
+                    <option value="">Sort by: Default</option>
+                    <option value="subscribers">Most Subscribers</option>
+                    <option value="views">Most Views</option>
+                    <option value="price_asc">Cheapest First</option>
+                    <option value="price_desc">Most Expensive First</option>
+                  </select>
+                </div>
+              </Section>
+            ) : (
+              <Section header="Filter Campaigns">
+                <Input
+                  header="Min Budget (TON)"
+                  placeholder="e.g. 5"
+                  type="number"
+                  step="0.1"
+                  value={minBudget}
+                  onChange={(e) => setMinBudget(e.target.value)}
+                />
+                <Input
+                  header="Language"
+                  placeholder="e.g. English, Russian"
+                  value={campLanguage}
+                  onChange={(e) => setCampLanguage(e.target.value)}
+                />
+              </Section>
+            )}
+            <div style={{ display: 'flex', gap: 8, padding: '8px 16px' }}>
+              <Button size="l" stretched onClick={() => setShowFilters(false)}>
+                Apply
+              </Button>
+              <Button size="l" stretched mode="outline" onClick={() => { clearFilters(); setShowFilters(false); }}>
+                Reset
+              </Button>
+            </div>
           </div>
-        </Section>
-      )}
-
-      {/* Campaign Filters */}
-      {showFilters && tab === 'campaigns' && (
-        <Section header="Filter Campaigns">
-          <Input
-            header="Min Budget (TON)"
-            placeholder="e.g. 5"
-            type="number"
-            value={minBudget}
-            onChange={(e) => setMinBudget(e.target.value)}
-          />
-          <Input
-            header="Language"
-            placeholder="e.g. English, Russian"
-            value={campLanguage}
-            onChange={(e) => setCampLanguage(e.target.value)}
-          />
-        </Section>
+        </div>
       )}
 
       {tab === 'channels' && (
-        <Section header="Available Channels">
+        <Section header={`Available Channels${channelsQuery.data?.total != null ? ` (${channelsQuery.data.total})` : ''}`}>
           {channelsQuery.isLoading && <Cell>Loading channels...</Cell>}
           {channelsQuery.error && <Cell>Failed to load channels</Cell>}
           {channelsQuery.data?.channels?.length === 0 && <Cell>No channels found</Cell>}
