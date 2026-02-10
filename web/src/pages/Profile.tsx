@@ -1,17 +1,20 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Section, Cell, Badge, Button, Input, Placeholder } from '@telegram-apps/telegram-ui';
-import { getMe, updateWallet, addChannel, setChannelPrices } from '../api/client';
+import { getMe, updateWallet, addChannel } from '../api/client';
 import type { User } from '../types';
-import { useState } from 'react';
 
 interface Props {
   user: User | null;
 }
 
 export function ProfilePage({ user }: Props) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [walletAddress, setWalletAddress] = useState('');
   const [newChannelUsername, setNewChannelUsername] = useState('');
+  const [newChannelLanguage, setNewChannelLanguage] = useState('');
 
   const { data: me, isLoading } = useQuery({
     queryKey: ['me'],
@@ -31,10 +34,11 @@ export function ProfilePage({ user }: Props) {
   });
 
   const addChannelMutation = useMutation({
-    mutationFn: () => addChannel(newChannelUsername.replace('@', '')),
+    mutationFn: () => addChannel(newChannelUsername.replace('@', ''), newChannelLanguage || undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me'] });
       setNewChannelUsername('');
+      setNewChannelLanguage('');
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
     },
     onError: (err: Error) => {
@@ -90,12 +94,13 @@ export function ProfilePage({ user }: Props) {
         {me.channels?.map((channel) => (
           <Cell
             key={channel.id}
-            subtitle={`${channel.subscriberCount.toLocaleString()} subscribers`}
+            subtitle={`${channel.subscriberCount.toLocaleString()} subscribers${channel.language ? ` · ${channel.language}` : ''}`}
             after={
               channel.botIsAdmin
                 ? <Badge type="dot" />
                 : <span style={{ fontSize: 12, color: '#d9534f' }}>Bot not admin</span>
             }
+            onClick={() => navigate(`/channels/${channel.id}`)}
           >
             {channel.title}
           </Cell>
@@ -106,6 +111,11 @@ export function ProfilePage({ user }: Props) {
             placeholder="@channel_username"
             value={newChannelUsername}
             onChange={(e) => setNewChannelUsername(e.target.value)}
+          />
+          <Input
+            placeholder="Channel language (e.g. English, Russian)"
+            value={newChannelLanguage}
+            onChange={(e) => setNewChannelLanguage(e.target.value)}
           />
           <div style={{ padding: '8px 0' }}>
             <Button

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Section, Cell, Badge, Button, Placeholder, Input } from '@telegram-apps/telegram-ui';
-import { getChannel, createDeal, setChannelPrices, verifyChannel } from '../api/client';
+import { getChannel, createDeal, setChannelPrices, verifyChannel, updateChannel, getChannelFullStats } from '../api/client';
 import type { User } from '../types';
 
 interface Props {
@@ -24,11 +24,20 @@ export function ChannelPage({ user }: Props) {
   const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [languageInput, setLanguageInput] = useState('');
+  const [editingLanguage, setEditingLanguage] = useState(false);
 
   const { data: channel, isLoading, error } = useQuery({
     queryKey: ['channel', id],
     queryFn: () => getChannel(parseInt(id!, 10)),
     enabled: !!id,
+  });
+
+  const { data: fullStats } = useQuery({
+    queryKey: ['channel-stats', id],
+    queryFn: () => getChannelFullStats(parseInt(id!, 10)),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 min cache
   });
 
   if (isLoading) return <Placeholder description="Loading channel..." />;
@@ -94,6 +103,17 @@ export function ChannelPage({ user }: Props) {
     }
   };
 
+  const handleSaveLanguage = async () => {
+    try {
+      await updateChannel(channel.id, { language: languageInput.trim() });
+      queryClient.invalidateQueries({ queryKey: ['channel', id] });
+      setEditingLanguage(false);
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    } catch (err) {
+      window.Telegram?.WebApp?.showAlert?.(err instanceof Error ? err.message : 'Failed to update');
+    }
+  };
+
   const openPriceForm = () => {
     const initial: Record<string, string> = {};
     for (const p of channel.prices) {
@@ -103,21 +123,75 @@ export function ChannelPage({ user }: Props) {
     setShowPriceForm(true);
   };
 
+  // Use MTProto stats if available, fallback to basic
+  const stats = {
+    subscribers: channel.subscriberCount,
+    avgViews: fullStats?.mtproto?.viewsPerPost ?? channel.avgViewCount,
+    shares: fullStats?.mtproto?.sharesPerPost ?? 0,
+    reactions: fullStats?.mtproto?.reactionsPerPost ?? 0,
+  };
+
   return (
     <div>
+      {/* Channel Info */}
       <Section header={channel.title}>
         {channel.username && (
           <Cell subtitle="Username">@{channel.username}</Cell>
         )}
-        <Cell subtitle="Subscribers">{channel.subscriberCount.toLocaleString()}</Cell>
-        {channel.avgViewCount > 0 && (
-          <Cell subtitle="Avg Views">{channel.avgViewCount.toLocaleString()}</Cell>
-        )}
-        {channel.language && (
-          <Cell subtitle="Language">{channel.language}</Cell>
-        )}
         {channel.description && (
           <Cell subtitle="Description">{channel.description}</Cell>
+        )}
+      </Section>
+
+      {/* Verified Stats */}
+      <Section header="Verified Stats">
+        <Cell subtitle="Subscribers">{stats.subscribers.toLocaleString()}</Cell>
+        {stats.avgViews > 0 && (
+          <Cell subtitle="Avg Views / Post">{Math.round(stats.avgViews).toLocaleString()}</Cell>
+        )}
+        {stats.shares > 0 && (
+          <Cell subtitle="Avg Shares / Post">{Math.round(stats.shares).toLocaleString()}</Cell>
+        )}
+        {stats.reactions > 0 && (
+          <Cell subtitle="Avg Reactions / Post">{Math.round(stats.reactions).toLocaleString()}</Cell>
+        )}
+        {stats.avgViews > 0 && stats.subscribers > 0 && (
+          <Cell subtitle="Reach Rate">
+            {((stats.avgViews / stats.subscribers) * 100).toFixed(1)}%
+          </Cell>
+        )}
+        {/* Language */}
+        {channel.language && !editingLanguage && (
+          <Cell
+            subtitle="Language"
+            onClick={isOwner ? () => { setLanguageInput(channel.language || ''); setEditingLanguage(true); } : undefined}
+          >
+            {channel.language}{isOwner ? ' (tap to edit)' : ''}
+          </Cell>
+        )}
+        {!channel.language && !editingLanguage && isOwner && (
+          <Cell
+            subtitle="Language"
+            onClick={() => { setLanguageInput(''); setEditingLanguage(true); }}
+          >
+            Not set (tap to add)
+          </Cell>
+        )}
+        {editingLanguage && (
+          <div style={{ padding: '4px 0' }}>
+            <Input
+              placeholder="e.g. English, Russian, Mixed"
+              value={languageInput}
+              onChange={(e) => setLanguageInput(e.target.value)}
+            />
+            <div style={{ display: 'flex', gap: 8, padding: '8px 16px' }}>
+              <Button size="m" stretched onClick={handleSaveLanguage}>Save</Button>
+              <Button size="m" stretched mode="outline" onClick={() => setEditingLanguage(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+        {!channel.language && !isOwner && (
+          <Cell subtitle="Language">Not specified</Cell>
         )}
         {isOwner && (
           <Cell subtitle="Bot Admin Status">

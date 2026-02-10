@@ -93,8 +93,32 @@ export function addChannel(username: string, language?: string) {
   });
 }
 
+export function updateChannel(id: number, data: { language?: string; isActive?: boolean }) {
+  return api<Channel>(`/api/channels/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 export function verifyChannel(id: number) {
   return api<{ botIsAdmin: boolean }>(`/api/channels/${id}/verify`, { method: 'POST' });
+}
+
+export interface ChannelFullStats {
+  subscriberCount: number;
+  avgViewCount: number;
+  language: string | null;
+  mtproto: {
+    viewsPerPost: number;
+    sharesPerPost: number;
+    reactionsPerPost: number;
+    subscriberCount: number;
+  } | null;
+  lastUpdated: string;
+}
+
+export function getChannelFullStats(id: number) {
+  return api<ChannelFullStats>(`/api/channels/${id}/stats/full`);
 }
 
 export function setChannelPrices(id: number, prices: Array<{ format: string; priceInTon: number; description?: string }>) {

@@ -13,18 +13,52 @@ export function MarketplacePage({ user }: Props) {
   const navigate = useNavigate();
   const [tab, setTab] = useState<'channels' | 'campaigns'>('channels');
   const [search, setSearch] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Channel filters
+  const [minSubs, setMinSubs] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [language, setLanguage] = useState('');
+  const [sortBy, setSortBy] = useState('');
+
+  // Campaign filters
+  const [minBudget, setMinBudget] = useState('');
+  const [campLanguage, setCampLanguage] = useState('');
+
+  const channelParams: Record<string, string | number> = { limit: 50 };
+  if (search) channelParams.search = search;
+  if (minSubs) channelParams.minSubscribers = parseInt(minSubs, 10);
+  if (maxPrice) channelParams.maxPrice = parseFloat(maxPrice);
+  if (language) channelParams.language = language;
+  if (sortBy) channelParams.sortBy = sortBy;
+
+  const campaignParams: Record<string, string | number> = { limit: 50 };
+  if (search) campaignParams.search = search;
+  if (minBudget) campaignParams.minBudget = parseFloat(minBudget);
+  if (campLanguage) campaignParams.language = campLanguage;
 
   const channelsQuery = useQuery({
-    queryKey: ['channels', search],
-    queryFn: () => getChannels(search ? { search, limit: 50 } : { limit: 50 }),
+    queryKey: ['channels', search, minSubs, maxPrice, language, sortBy],
+    queryFn: () => getChannels(channelParams),
     enabled: tab === 'channels',
   });
 
   const campaignsQuery = useQuery({
-    queryKey: ['campaigns', search],
-    queryFn: () => getCampaigns(search ? { search, limit: 50 } : { limit: 50 }),
+    queryKey: ['campaigns', search, minBudget, campLanguage],
+    queryFn: () => getCampaigns(campaignParams),
     enabled: tab === 'campaigns',
   });
+
+  const clearFilters = () => {
+    setMinSubs('');
+    setMaxPrice('');
+    setLanguage('');
+    setSortBy('');
+    setMinBudget('');
+    setCampLanguage('');
+  };
+
+  const hasActiveFilters = !!(minSubs || maxPrice || language || sortBy || minBudget || campLanguage);
 
   return (
     <div>
@@ -51,7 +85,85 @@ export function MarketplacePage({ user }: Props) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <div style={{ display: 'flex', gap: 8, padding: '4px 16px 8px' }}>
+          <Button
+            size="s"
+            mode={showFilters ? 'filled' : 'outline'}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            Filters{hasActiveFilters ? ' *' : ''}
+          </Button>
+          {hasActiveFilters && (
+            <Button size="s" mode="outline" onClick={clearFilters}>
+              Clear
+            </Button>
+          )}
+        </div>
       </Section>
+
+      {/* Channel Filters */}
+      {showFilters && tab === 'channels' && (
+        <Section header="Filter Channels">
+          <Input
+            header="Min Subscribers"
+            placeholder="e.g. 1000"
+            type="number"
+            value={minSubs}
+            onChange={(e) => setMinSubs(e.target.value)}
+          />
+          <Input
+            header="Max Price (TON)"
+            placeholder="e.g. 10"
+            type="number"
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value)}
+          />
+          <Input
+            header="Language"
+            placeholder="e.g. English, Russian"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+          />
+          <div style={{ padding: '8px 16px' }}>
+            <select
+              style={{
+                width: '100%', padding: '10px', fontSize: '14px',
+                border: '1px solid var(--tg-theme-hint-color, #999)',
+                borderRadius: '8px',
+                background: 'var(--tg-theme-bg-color, #fff)',
+                color: 'var(--tg-theme-text-color, #000)',
+              }}
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="">Sort by: Default</option>
+              <option value="subscribers">Most Subscribers</option>
+              <option value="views">Most Views</option>
+              <option value="price_asc">Cheapest First</option>
+              <option value="price_desc">Most Expensive First</option>
+            </select>
+          </div>
+        </Section>
+      )}
+
+      {/* Campaign Filters */}
+      {showFilters && tab === 'campaigns' && (
+        <Section header="Filter Campaigns">
+          <Input
+            header="Min Budget (TON)"
+            placeholder="e.g. 5"
+            type="number"
+            value={minBudget}
+            onChange={(e) => setMinBudget(e.target.value)}
+          />
+          <Input
+            header="Language"
+            placeholder="e.g. English, Russian"
+            value={campLanguage}
+            onChange={(e) => setCampLanguage(e.target.value)}
+          />
+        </Section>
+      )}
 
       {tab === 'channels' && (
         <Section header="Available Channels">
@@ -61,7 +173,11 @@ export function MarketplacePage({ user }: Props) {
           {channelsQuery.data?.channels?.map((channel: Channel) => (
             <Cell
               key={channel.id}
-              subtitle={`${channel.subscriberCount.toLocaleString()} subscribers`}
+              subtitle={
+                `${channel.subscriberCount.toLocaleString()} subs` +
+                (channel.language ? ` · ${channel.language}` : '') +
+                (channel.avgViewCount > 0 ? ` · ${channel.avgViewCount.toLocaleString()} views` : '')
+              }
               after={
                 channel.prices[0] ? (
                   <Badge type="number">{`${channel.prices[0].priceInTon} TON`}</Badge>
@@ -70,7 +186,6 @@ export function MarketplacePage({ user }: Props) {
               onClick={() => navigate(`/channels/${channel.id}`)}
             >
               {channel.title}
-              {channel.username && ` @${channel.username}`}
             </Cell>
           ))}
         </Section>
@@ -93,7 +208,10 @@ export function MarketplacePage({ user }: Props) {
           {campaignsQuery.data?.campaigns?.map((campaign: Campaign) => (
             <Cell
               key={campaign.id}
-              subtitle={campaign.description.substring(0, 100)}
+              subtitle={
+                campaign.description.substring(0, 80) +
+                (campaign.targetLanguage ? ` · ${campaign.targetLanguage}` : '')
+              }
               after={<Badge type="number">{`${campaign.budgetPerPost} TON`}</Badge>}
               onClick={() => navigate(`/campaigns/${campaign.id}`)}
             >

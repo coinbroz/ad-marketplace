@@ -153,14 +153,19 @@ bot.command('addchannel', async (ctx) => {
     return;
   }
 
-  const username = ctx.match?.trim().replace('@', '');
+  const args = ctx.match?.trim().split(/\s+/) || [];
+  const username = args[0]?.replace('@', '');
+  const language = args.slice(1).join(' ') || undefined;
 
   if (!username) {
     await ctx.reply(
       '📺 <b>Add a channel</b>\n\n' +
       '1. Add @channelescrow_bot as <b>admin</b> to your channel\n' +
-      '2. Send: /addchannel @yourchannel\n\n' +
-      'Example: <code>/addchannel @mychannel</code>',
+      '2. Send: /addchannel @yourchannel [language]\n\n' +
+      'Examples:\n' +
+      '<code>/addchannel @mychannel</code>\n' +
+      '<code>/addchannel @mychannel English</code>\n' +
+      '<code>/addchannel @mychannel Russian</code>',
       { parse_mode: 'HTML' },
     );
     return;
@@ -168,7 +173,7 @@ bot.command('addchannel', async (ctx) => {
 
   try {
     const { addChannel } = await import('../services/channels.js');
-    const channel = await addChannel({ ownerId: user.id, username });
+    const channel = await addChannel({ ownerId: user.id, username, language });
     await ctx.reply(
       `✅ Channel <b>${channel.title}</b> added!\n` +
       `Subscribers: ${channel.subscriberCount.toLocaleString()}\n` +
