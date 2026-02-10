@@ -49,23 +49,27 @@ export async function createCampaign(input: CreateCampaignInput) {
  * List campaigns with filters and pagination.
  */
 export async function listCampaigns(filters: CampaignFilters) {
-  const page = filters.page || 1;
-  const limit = Math.min(filters.limit || 20, 100);
+  // Parse numeric filters (query params arrive as strings)
+  const page = Number(filters.page) || 1;
+  const limit = Math.min(Number(filters.limit) || 20, 100);
   const skip = (page - 1) * limit;
+
+  const minBudget = Number(filters.minBudget) || 0;
+  const maxBudget = Number(filters.maxBudget) || 0;
 
   const where: Prisma.CampaignWhereInput = {};
 
   // Budget filters
-  if (filters.minBudget) {
-    where.budgetPerPost = { ...where.budgetPerPost as object, gte: filters.minBudget };
+  if (minBudget > 0) {
+    where.budgetPerPost = { ...where.budgetPerPost as object, gte: minBudget };
   }
-  if (filters.maxBudget) {
-    where.budgetPerPost = { ...where.budgetPerPost as object, lte: filters.maxBudget };
+  if (maxBudget > 0) {
+    where.budgetPerPost = { ...where.budgetPerPost as object, lte: maxBudget };
   }
 
   // Language filter
   if (filters.language) {
-    where.targetLanguage = filters.language;
+    where.targetLanguage = { contains: filters.language, mode: 'insensitive' };
   }
 
   // Status filter

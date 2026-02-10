@@ -132,34 +132,41 @@ export async function setChannelPrices(channelId: number, prices: SetPriceInput[
  * List channels with filters and pagination.
  */
 export async function listChannels(filters: ChannelFilters) {
-  const page = filters.page || 1;
-  const limit = Math.min(filters.limit || 20, 100);
+  // Parse numeric filters (query params arrive as strings)
+  const page = Number(filters.page) || 1;
+  const limit = Math.min(Number(filters.limit) || 20, 100);
   const skip = (page - 1) * limit;
+
+  const minSubs = Number(filters.minSubscribers) || 0;
+  const maxSubs = Number(filters.maxSubscribers) || 0;
+  const minViews = Number(filters.minAvgViews) || 0;
+  const maxViews = Number(filters.maxAvgViews) || 0;
+  const minPrice = Number(filters.minPrice) || 0;
+  const maxPrice = Number(filters.maxPrice) || 0;
 
   const where: Prisma.ChannelWhereInput = {
     isActive: true,
-    botIsAdmin: true,
   };
 
   // Subscriber filters
-  if (filters.minSubscribers) {
-    where.subscriberCount = { ...where.subscriberCount as object, gte: filters.minSubscribers };
+  if (minSubs > 0) {
+    where.subscriberCount = { ...where.subscriberCount as object, gte: minSubs };
   }
-  if (filters.maxSubscribers) {
-    where.subscriberCount = { ...where.subscriberCount as object, lte: filters.maxSubscribers };
+  if (maxSubs > 0) {
+    where.subscriberCount = { ...where.subscriberCount as object, lte: maxSubs };
   }
 
   // View filters
-  if (filters.minAvgViews) {
-    where.avgViewCount = { ...where.avgViewCount as object, gte: filters.minAvgViews };
+  if (minViews > 0) {
+    where.avgViewCount = { ...where.avgViewCount as object, gte: minViews };
   }
-  if (filters.maxAvgViews) {
-    where.avgViewCount = { ...where.avgViewCount as object, lte: filters.maxAvgViews };
+  if (maxViews > 0) {
+    where.avgViewCount = { ...where.avgViewCount as object, lte: maxViews };
   }
 
   // Language filter
   if (filters.language) {
-    where.language = filters.language;
+    where.language = { contains: filters.language, mode: 'insensitive' };
   }
 
   // Search filter
@@ -172,33 +179,38 @@ export async function listChannels(filters: ChannelFilters) {
   }
 
   // Price filter (requires join)
-  if (filters.minPrice || filters.maxPrice || filters.format) {
+  if (minPrice > 0 || maxPrice > 0 || filters.format) {
     const priceWhere: Prisma.ChannelPriceWhereInput = {};
     if (filters.format) {
       priceWhere.format = filters.format;
     }
-    if (filters.minPrice) {
-      priceWhere.priceInTon = { ...priceWhere.priceInTon as object, gte: filters.minPrice };
+    if (minPrice > 0) {
+      priceWhere.priceInTon = { ...priceWhere.priceInTon as object, gte: minPrice };
     }
-    if (filters.maxPrice) {
-      priceWhere.priceInTon = { ...priceWhere.priceInTon as object, lte: filters.maxPrice };
+    if (maxPrice > 0) {
+      priceWhere.priceInTon = { ...priceWhere.priceInTon as object, lte: maxPrice };
     }
     where.prices = { some: priceWhere };
   }
 
   // Sort
   let orderBy: Prisma.ChannelOrderByWithRelationInput = { createdAt: 'desc' };
-  const order = filters.sortOrder || 'desc';
 
   switch (filters.sortBy) {
     case 'subscribers':
-      orderBy = { subscriberCount: order };
+      orderBy = { subscriberCount: 'desc' };
       break;
     case 'views':
-      orderBy = { avgViewCount: order };
+      orderBy = { avgViewCount: 'desc' };
+      break;
+    case 'price_asc':
+      orderBy = { prices: { _count: 'asc' } };
+      break;
+    case 'price_desc':
+      orderBy = { prices: { _count: 'desc' } };
       break;
     case 'created':
-      orderBy = { createdAt: order };
+      orderBy = { createdAt: 'desc' };
       break;
   }
 
