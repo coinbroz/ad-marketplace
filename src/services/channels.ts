@@ -25,7 +25,7 @@ export interface ChannelFilters {
   language?: string;
   format?: string;
   search?: string;
-  sortBy?: 'subscribers' | 'price' | 'views' | 'created';
+  sortBy?: 'subscribers' | 'price' | 'views' | 'created' | 'price_asc' | 'price_desc';
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
