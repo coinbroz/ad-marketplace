@@ -2,15 +2,16 @@
 
 **Start:** February 10, 2026
 **Deadline:** February 16, 2026
+**Current Status:** See `docs/PROGRESS_LOG.md` for detailed progress
 
 ---
 
-## Day 1 — Foundation (Feb 10)
+## Day 1 — Foundation (Feb 10) — COMPLETED
 
 ### Goal: Backend skeleton + DB + Auth + Infrastructure
 
 **Tasks:**
-1. `npm init` — инициализация проекта, установка зависимостей
+1. ~~`npm init` — инициализация проекта, установка зависимостей~~ DONE
    - fastify, @fastify/static, @fastify/cors, @fastify/jwt, @fastify/rate-limit
    - prisma, @prisma/client
    - grammy, @grammyjs/conversations
@@ -55,11 +56,11 @@
 
 9. Тестирование: бот отвечает на /start, auth endpoint работает, health check OK
 
-**Результат дня:** Сервер запущен, бот работает, авторизация работает, MTProto подключён.
+**Результат дня:** Сервер запущен, бот работает, авторизация работает, MTProto подключён. DONE
 
 ---
 
-## Day 2 — Marketplace Logic (Feb 11)
+## Day 2 — Marketplace Logic (Feb 11) — COMPLETED
 
 ### Goal: Channels + Campaigns + Stats + Filters + Admin checks
 
@@ -112,13 +113,14 @@
    - `/addchannel` — диалог: @username → verify → цены → язык → менеджеры
    - Уведомления о новых кампаниях/предложениях
 
-**Результат дня:** Каналы + кампании + статистика + фильтры + PR manager flow + admin re-check.
+**Результат дня:** Каналы + кампании + статистика + фильтры + PR manager flow + admin re-check. DONE
 
 ---
 
-## Day 3 — TON Escrow (Feb 12)
+## Day 3 — TON Escrow (Feb 12) — 80% DONE (transactions TODO)
 
 ### Goal: Escrow wallets + payment monitoring + payouts + security
+### REMAINING: releaseFunds() and refundFunds() actual TON transactions are placeholders
 
 **Tasks:**
 1. `src/utils/ton-wallet.ts` — утилиты для TON
@@ -165,11 +167,11 @@
    - Создать сделку → escrow → оплата → FUNDED
    - Payout и refund flows
 
-**Результат дня:** Полный escrow flow на testnet с EscrowWallet, AES-256-GCM, state machine.
+**Результат дня:** Escrow wallet generation, AES-256-GCM, state machine, payment monitoring — DONE. Actual TON send — TODO.
 
 ---
 
-## Day 4 — Creative Workflow + Auto-posting (Feb 13)
+## Day 4 — Creative Workflow + Auto-posting (Feb 13) — COMPLETED
 
 ### Goal: Approval loop + auto-post + verification + scheduled posting
 
@@ -224,13 +226,14 @@
    - BullMQ delayed job: `queue.add('publish', {dealId}, {delay})`
    - Worker: publishPost() в назначенное время
 
-**Результат дня:** Полный цикл: сделка → оплата → креатив через бота → одобрение → публикация → верификация → выплата.
+**Результат дня:** Полный цикл: сделка → оплата → креатив через бота → одобрение → публикация → верификация → выплата. DONE
 
 ---
 
-## Day 5 — Mini App Frontend (Feb 14)
+## Day 5 — Mini App Frontend (Feb 14) — 90% DONE
 
 ### Goal: React UI в Telegram Mini App
+### NOTE: All pages implemented. Needs E2E testing with deal flow.
 
 **Dependencies:**
 ```
@@ -287,13 +290,14 @@ qrcode.react
 
 8. Сборка: `vite build` → `web/dist/` → Fastify static
 
-**Результат дня:** Рабочий Mini App с обоими flow, фильтрами, timeline сделок, экраном оплаты.
+**Результат дня:** Рабочий Mini App с фильтрами (bottom sheet overlay), channel stats, deal pages. Deployed to Railway.
 
 ---
 
-## Day 6 — Integration + Deploy + Submit (Feb 15)
+## Day 6 — Integration + Deploy + Submit (Feb 15) — IN PROGRESS
 
 ### Goal: Deploy, E2E testing, README, submission
+### NOTE: Deploy done early. E2E testing + TON transactions + README polish remaining.
 
 **Tasks:**
 1. End-to-end тестирование:
@@ -400,13 +404,31 @@ qrcode.react
 ## Environment Setup Checklist
 
 Before starting Day 1:
-- [ ] Node.js 20+ installed
-- [ ] Create Telegram Bot via @BotFather → get BOT_TOKEN
-- [ ] Create test channel in Telegram
-- [ ] Add bot as admin to test channel
+- [x] Node.js 20+ installed
+- [x] Create Telegram Bot via @BotFather → get BOT_TOKEN
+- [x] Create test channel in Telegram
+- [x] Add bot as admin to test channel
 - [ ] Get TON testnet coins from https://t.me/testgiver_ton_bot
-- [ ] Get toncenter API key from https://toncenter.com
-- [ ] Register app on https://my.telegram.org → get API_ID, API_HASH
-- [ ] Generate GramJS session string (one-time script)
-- [ ] Railway account created ($5/month Hobby plan)
-- [ ] GitHub repo created
+- [x] Get toncenter API key from https://toncenter.com
+- [ ] Register app on https://my.telegram.org → get API_ID, API_HASH (MTProto optional)
+- [ ] Generate GramJS session string (MTProto optional)
+- [x] Railway account created
+- [x] GitHub repo created
+
+---
+
+## Status Summary (Updated Feb 10, 2026)
+
+### COMPLETED:
+- Days 1-2: Backend, DB, Auth, Bot, Channels, Campaigns, Stats, Filters, Admin re-check
+- Day 3 (partial): Escrow wallet generation, encryption, payment monitoring, state machine
+- Day 4: Creative workflow, bot conversations, auto-posting, post verification, scheduled posting
+- Day 5: All Mini App pages, API client, Telegram UI components
+- Deploy: Railway with PostgreSQL + Redis, auto-deploy from GitHub
+
+### REMAINING (3 items):
+1. **TON actual transactions** — `releaseFunds()` and `refundFunds()` in `src/services/ton.ts` (4-6h)
+2. **E2E testing** — Full deal flow with two Telegram accounts (3h)
+3. **README polish** — Screenshots, final description, submission (2h)
+
+### See `docs/PROGRESS_LOG.md` for detailed status of every component.
