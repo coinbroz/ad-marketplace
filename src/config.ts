@@ -14,7 +14,7 @@ const envSchema = z.object({
   TON_NETWORK: z.enum(['mainnet', 'testnet']).default('testnet'),
   TON_API_KEY: z.string().default(''),
   ESCROW_ENCRYPTION_KEY: z.string().min(32, 'ESCROW_ENCRYPTION_KEY must be at least 32 characters'),
-  HOT_WALLET_MNEMONIC: z.string().min(1, 'HOT_WALLET_MNEMONIC is required'),
+  HOT_WALLET_MNEMONIC: z.string().default(''),
 
   // Telegram MTProto
   TELEGRAM_API_ID: z.string().default(''),
