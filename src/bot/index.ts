@@ -140,6 +140,47 @@ bot.command('mycampaigns', async (ctx) => {
   });
 });
 
+bot.command('addchannel', async (ctx) => {
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await prisma.user.findUnique({
+    where: { telegramId: BigInt(telegramId) },
+  });
+
+  if (!user) {
+    await ctx.reply('Please open the Mini App first to register.');
+    return;
+  }
+
+  const username = ctx.match?.trim().replace('@', '');
+
+  if (!username) {
+    await ctx.reply(
+      '📺 <b>Add a channel</b>\n\n' +
+      '1. Add @channelescrow_bot as <b>admin</b> to your channel\n' +
+      '2. Send: /addchannel @yourchannel\n\n' +
+      'Example: <code>/addchannel @mychannel</code>',
+      { parse_mode: 'HTML' },
+    );
+    return;
+  }
+
+  try {
+    const { addChannel } = await import('../services/channels.js');
+    const channel = await addChannel({ ownerId: user.id, username });
+    await ctx.reply(
+      `✅ Channel <b>${channel.title}</b> added!\n` +
+      `Subscribers: ${channel.subscriberCount.toLocaleString()}\n` +
+      `Bot is admin: ${channel.botIsAdmin ? 'Yes ✅' : 'No ❌'}\n\n` +
+      `${!channel.botIsAdmin ? '⚠️ Please add the bot as admin to enable auto-posting.' : 'You can now set prices in the Mini App.'}`,
+      { parse_mode: 'HTML' },
+    );
+  } catch (err: any) {
+    await ctx.reply(`❌ Error: ${err.message}`);
+  }
+});
+
 // ── Conversation commands ──────────────────────────────────
 
 bot.command('submitcreative', async (ctx) => {
