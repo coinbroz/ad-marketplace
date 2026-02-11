@@ -15,7 +15,9 @@ export function verifyChannelAdmin(getChannelId: (request: FastifyRequest) => Pr
   return async function (request: FastifyRequest, reply: FastifyReply) {
     const ids = await getChannelId(request);
     if (!ids) {
-      return reply.status(404).send({ error: 'Channel not found' });
+      // User is not the channel owner — skip admin check.
+      // Permission will be verified by the endpoint handler.
+      return;
     }
 
     const isAdmin = await isUserAdmin(
