@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Section, Cell, Button, Input } from '@telegram-apps/telegram-ui';
 import { createCampaign } from '../api/client';
+import { LanguageInput } from '../components/LanguageInput';
 import type { User } from '../types';
 
 interface Props {
@@ -78,11 +79,11 @@ export function CreateCampaignPage({ user }: Props) {
       </Section>
 
       <Section header="Targeting (optional)">
-        <Input
+        <LanguageInput
           header="Target Language"
           placeholder="e.g. English, Russian"
           value={targetLanguage}
-          onChange={(e) => setTargetLanguage(e.target.value)}
+          onChange={setTargetLanguage}
         />
         <Input
           header="Min Subscribers"

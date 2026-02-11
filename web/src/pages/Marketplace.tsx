@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Section, Cell, Badge, Input, SegmentedControl, Button } from '@telegram-apps/telegram-ui';
 import { getChannels, getCampaigns } from '../api/client';
+import { LanguageInput } from '../components/LanguageInput';
 import type { User, Channel, Campaign } from '../types';
 
 interface Props {
@@ -178,11 +179,11 @@ export function MarketplacePage({ user }: Props) {
                   value={maxPrice}
                   onChange={(e) => setMaxPrice(e.target.value)}
                 />
-                <Input
+                <LanguageInput
                   header="Language"
                   placeholder="e.g. English, Russian"
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
+                  onChange={setLanguage}
                 />
                 <div style={{ padding: '8px 16px' }}>
                   <select
@@ -214,11 +215,11 @@ export function MarketplacePage({ user }: Props) {
                   value={minBudget}
                   onChange={(e) => setMinBudget(e.target.value)}
                 />
-                <Input
+                <LanguageInput
                   header="Language"
                   placeholder="e.g. English, Russian"
                   value={campLanguage}
-                  onChange={(e) => setCampLanguage(e.target.value)}
+                  onChange={setCampLanguage}
                 />
               </Section>
             )}

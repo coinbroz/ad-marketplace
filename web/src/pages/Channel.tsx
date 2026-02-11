@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Section, Cell, Badge, Button, Placeholder, Input } from '@telegram-apps/telegram-ui';
 import { getChannel, createDeal, setChannelPrices, verifyChannel, updateChannel, getChannelFullStats } from '../api/client';
+import { LanguageInput } from '../components/LanguageInput';
 import type { User } from '../types';
 
 interface Props {
@@ -179,10 +180,10 @@ export function ChannelPage({ user }: Props) {
         )}
         {editingLanguage && (
           <div style={{ padding: '4px 0' }}>
-            <Input
-              placeholder="e.g. English, Russian, Mixed"
+            <LanguageInput
+              placeholder="e.g. English, Russian"
               value={languageInput}
-              onChange={(e) => setLanguageInput(e.target.value)}
+              onChange={setLanguageInput}
             />
             <div style={{ display: 'flex', gap: 8, padding: '8px 16px' }}>
               <Button size="m" stretched onClick={handleSaveLanguage}>Save</Button>

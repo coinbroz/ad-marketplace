@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Section, Cell, Badge, Button, Input, Placeholder } from '@telegram-apps/telegram-ui';
 import { getMe, updateWallet, addChannel } from '../api/client';
+import { LanguageInput } from '../components/LanguageInput';
 import type { User } from '../types';
 
 interface Props {
@@ -112,10 +113,10 @@ export function ProfilePage({ user }: Props) {
             value={newChannelUsername}
             onChange={(e) => setNewChannelUsername(e.target.value)}
           />
-          <Input
+          <LanguageInput
             placeholder="Channel language (e.g. English, Russian)"
             value={newChannelLanguage}
-            onChange={(e) => setNewChannelLanguage(e.target.value)}
+            onChange={setNewChannelLanguage}
           />
           <div style={{ padding: '8px 0' }}>
             <Button

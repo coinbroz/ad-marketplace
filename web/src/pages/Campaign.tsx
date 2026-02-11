@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Section, Cell, Badge, Button, Placeholder, Input } from '@telegram-apps/telegram-ui';
 import { getCampaign, applyCampaign, updateCampaign, getMe } from '../api/client';
+import { LanguageInput } from '../components/LanguageInput';
 import type { User } from '../types';
 
 interface Props {
@@ -114,11 +115,11 @@ export function CampaignPage({ user }: Props) {
             value={editBudget}
             onChange={(e) => setEditBudget(e.target.value)}
           />
-          <Input
+          <LanguageInput
             header="Target Language"
             placeholder="e.g. English, Russian"
             value={editLanguage}
-            onChange={(e) => setEditLanguage(e.target.value)}
+            onChange={setEditLanguage}
           />
           <Input
             header="Min Subscribers"
