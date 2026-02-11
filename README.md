@@ -98,13 +98,13 @@ TON_API_KEY=            # From toncenter.com
 
 ### Creative Approval Workflow
 ```
-Advertiser submits brief
-  → Channel owner accepts deal
+Deal accepted
   → Advertiser pays to escrow
-  → Owner drafts post (via bot conversation)
-  → Advertiser approves or requests edits
-  → Post auto-published at agreed time
-  → 24h verification → funds released
+  → Advertiser submits brief + materials (via /submitbrief)
+  → Channel owner creates ad post (via /submitcreative)
+  → Advertiser reviews: approves or requests edits (Mini App)
+  → Once approved, post auto-published at agreed time (via /schedulepost)
+  → 24h verification → funds released to channel owner
 ```
 
 ### Channel Stats
@@ -114,9 +114,10 @@ Advertiser submits brief
 - Stats snapshots for history
 
 ### Post Verification
-- **Deletion detection**: `forwardMessage` check every 5 minutes
-- **Edit detection**: `edited_channel_post` webhook with content hash comparison
+- **Deletion detection**: `copyMessage` check every 5 minutes (copy to same channel, immediately deleted)
+- **Edit detection**: `edited_channel_post` webhook with SHA-256 content hash comparison
 - **24h hold**: Funds released only after post stays intact for 24 hours
+- **Dispute**: If post deleted before 24h → deal moves to DISPUTED, funds frozen
 
 ### Admin Re-check
 Per spec requirement: admin status is re-verified via `getChatMember` before all financial operations (deal acceptance, creative submission, payouts). Cached in Redis (5 min TTL).
@@ -125,12 +126,16 @@ Per spec requirement: admin status is re-verified via `getChatMember` before all
 Channel owners can add managers who can accept deals and submit creatives, but cannot modify pricing or delete channels.
 
 ### Bot Commands
-- `/start` — Open marketplace Mini App
-- `/mydeals` — View active deals with status
-- `/submitcreative` — Submit ad creative (conversation)
-- `/schedulepost` — Schedule or publish approved post
-- `/addchannel` — Add channel to marketplace
-- `/help` — Available commands
+| Command | Description |
+|---------|-------------|
+| `/start` | Open marketplace Mini App |
+| `/mydeals` | View active deals with status |
+| `/addchannel` | Add channel to marketplace |
+| `/mycampaigns` | View your campaigns |
+| `/submitbrief` | Submit ad brief + materials (advertiser) |
+| `/submitcreative` | Create ad post for review (channel owner) |
+| `/schedulepost` | Schedule or publish approved post |
+| `/help` | Show all commands |
 
 ### Background Workers (BullMQ)
 | Worker | Interval | Task |
@@ -157,17 +162,21 @@ Channel owners can add managers who can accept deals and submit creatives, but c
 
 ## Key Decisions
 
-1. **Custodial escrow** — New wallet per deal with encrypted keys. Simpler than smart contracts for MVP, provides full control over funds flow.
+1. **Custodial escrow** — New V4 wallet per deal with AES-256-GCM encrypted keys. Simpler than smart contracts for MVP, provides full control over funds flow. Each wallet is a separate Prisma `EscrowWallet` record.
 
-2. **Fastify over Express** — Better TypeScript support, faster, built-in schema validation, native async/await.
+2. **Fastify over Express** — Better TypeScript support, faster, built-in schema validation, native async/await. Global BigInt serializer for Prisma compatibility.
 
-3. **GramJS for stats** — Bot API doesn't expose channel view counts. MTProto `stats.getBroadcastStats` provides views, shares, reactions data.
+3. **GramJS for stats** — Bot API doesn't expose channel view counts. MTProto `stats.getBroadcastStats` provides views, shares, reactions data. Fallback to Bot API if MTProto unavailable.
 
-4. **Grammy for bot** — Modern, TypeScript-first, excellent conversations plugin for multi-step dialogs.
+4. **Grammy for bot** — Modern, TypeScript-first, excellent conversations plugin for multi-step dialogs (submitBrief, submitCreative, schedulePost).
 
 5. **Monolith architecture** — Single deployable unit on Railway. Simpler to deploy and debug. Workers run in the same process via BullMQ.
 
-6. **Deal state machine** — Explicit valid transitions prevent invalid states. Every transition logged in DealEvent for full audit trail.
+6. **Deal state machine** — 14 states with explicit valid transitions. Every transition logged in `DealEvent` for full audit trail. Auto-timeout for stalled deals.
+
+7. **Two-way marketplace** — Both entry points from spec: channel owners list channels (advertisers propose deals), advertisers create campaigns (owners apply). Both converge into the same deal workflow.
+
+8. **Bot-driven creative flow** — Per spec: "For messaging, use a text bot; don't create a chat in a mini-app". Brief submission, creative creation, and scheduling all happen via bot conversations. Mini App is for browsing, deal management, and approvals.
 
 ## Known Limitations
 
@@ -177,9 +186,11 @@ Channel owners can add managers who can accept deals and submit creatives, but c
 
 3. **MTProto session** — Requires a user session (phone number auth) for `stats.getBroadcastStats`. The bot token alone cannot access channel statistics.
 
-4. **TON transactions** — Current implementation uses toncenter API for balance checks. Full transaction signing (deploy + send) is architectured but marked as TODO for actual wallet deployment on testnet.
+4. **TON transactions** — Payment monitoring and balance checks work via toncenter API. Payout/refund transaction signing (deploy + send from escrow) is architectured but uses placeholder tx hashes. The escrow wallet keys are generated and encrypted — ready for full on-chain implementation.
 
-5. **No dispute resolution UI** — Disputes are logged but manual resolution is needed. Future: voting/mediation system.
+5. **No dispute resolution UI** — Disputes are detected and logged (post deletion/edit), but manual resolution is needed. Future: voting/mediation system.
+
+6. **Gas reserve** — 0.05 TON is reserved per deal for on-chain gas fees (escrow wallet deploy + transfer). This means channel owner receives `price - 0.05 TON`.
 
 ## Future Thoughts
 
@@ -202,8 +213,8 @@ Channel owners can add managers who can accept deals and submit creatives, but c
 │   │   ├── routes/           # channels, campaigns, deals, auth
 │   │   └── middleware/       # auth (JWT), verify-admin
 │   ├── bot/
-│   │   ├── index.ts          # Grammy setup + commands
-│   │   └── conversations/    # submitCreative, schedulePost
+│   │   ├── index.ts          # Grammy setup + commands + setMyCommands
+│   │   └── conversations/    # submitBrief, submitCreative, schedulePost
 │   ├── services/             # Business logic
 │   │   ├── channels.ts       # Channel CRUD + stats
 │   │   ├── campaigns.ts      # Campaign CRUD + filters
