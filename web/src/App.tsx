@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Tabbar } from '@telegram-apps/telegram-ui';
 import { authenticate } from './api/client';
 import { MarketplacePage } from './pages/Marketplace';
 import { DealsPage } from './pages/Deals';
@@ -71,8 +70,10 @@ function AppContent() {
     );
   }
 
+  const activeTab = getActiveTab();
+
   return (
-    <div style={{ paddingBottom: 80 }}>
+    <div style={{ paddingBottom: 100 }}>
       <Routes>
         <Route path="/" element={<MarketplacePage user={user} />} />
         <Route path="/channels/:id" element={<ChannelPage user={user} />} />
@@ -84,24 +85,55 @@ function AppContent() {
         <Route path="/profile" element={<ProfilePage user={user} />} />
       </Routes>
 
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100 }}>
-        <Tabbar>
-          <Tabbar.Item
-            text="Marketplace"
-            selected={getActiveTab() === 'marketplace'}
-            onClick={() => navigate('/')}
-          />
-          <Tabbar.Item
-            text="My Deals"
-            selected={getActiveTab() === 'deals'}
-            onClick={() => navigate('/deals')}
-          />
-          <Tabbar.Item
-            text="Profile"
-            selected={getActiveTab() === 'profile'}
-            onClick={() => navigate('/profile')}
-          />
-        </Tabbar>
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
+        background: 'var(--tg-theme-bg-color, #fff)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        borderTop: '1px solid var(--tg-theme-hint-color, #ddd)',
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          padding: '8px 0',
+        }}>
+          {[
+            { key: 'marketplace', label: 'Marketplace', path: '/' },
+            { key: 'deals', label: 'My Deals', path: '/deals' },
+            { key: 'profile', label: 'Profile', path: '/profile' },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => navigate(tab.path)}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 2,
+                padding: '6px 0',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: activeTab === tab.key
+                  ? 'var(--tg-theme-button-color, #3390ec)'
+                  : 'var(--tg-theme-hint-color, #999)',
+                fontWeight: activeTab === tab.key ? 700 : 500,
+                fontSize: 13,
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              <span style={{ fontSize: 22 }}>
+                {tab.key === 'marketplace' ? '🏪' : tab.key === 'deals' ? '🤝' : '👤'}
+              </span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

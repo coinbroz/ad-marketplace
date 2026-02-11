@@ -58,7 +58,8 @@ export function ChannelPage({ user }: Props) {
               tg.HapticFeedback?.notificationOccurred('success');
               navigate(`/deals/${deal.id}`);
             } catch (err) {
-              tg.showAlert?.(err instanceof Error ? err.message : 'Failed to create deal');
+              const msg = err instanceof Error ? err.message : 'Failed to create deal';
+              tg.showAlert?.(msg.includes('active deal') ? msg + '\n\nCheck the "My Deals" tab below.' : msg);
             }
           }
         },
