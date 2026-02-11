@@ -220,7 +220,7 @@ export function DealPage({ user }: Props) {
         </div>
       )}
 
-      {deal.status === 'FUNDED' && isAdvertiser && (
+      {deal.status === 'FUNDED' && isAdvertiser && !deal.brief && (
         <div style={{
           padding: '12px 16px',
           background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
@@ -229,11 +229,11 @@ export function DealPage({ user }: Props) {
           fontSize: 14,
           color: 'var(--tg-theme-hint-color, #999)',
         }}>
-          Payment confirmed! Send your ad brief and materials to the channel owner: use /submitbrief in the bot.
+          Payment confirmed! Now send your ad brief and materials: use /submitbrief in the bot.
         </div>
       )}
 
-      {deal.status === 'FUNDED' && isOwner && (
+      {deal.status === 'FUNDED' && isAdvertiser && deal.brief && (
         <div style={{
           padding: '12px 16px',
           background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
@@ -242,7 +242,33 @@ export function DealPage({ user }: Props) {
           fontSize: 14,
           color: 'var(--tg-theme-hint-color, #999)',
         }}>
-          Payment received! Wait for the advertiser's brief, then create the ad post: send /submitcreative to the bot.
+          Brief sent! Waiting for the channel owner to create the ad post.
+        </div>
+      )}
+
+      {deal.status === 'FUNDED' && isOwner && !deal.brief && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Payment received! Waiting for the advertiser to send their brief.
+        </div>
+      )}
+
+      {deal.status === 'FUNDED' && isOwner && deal.brief && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Brief received! Create the ad post: send /submitcreative to the bot.
         </div>
       )}
 
