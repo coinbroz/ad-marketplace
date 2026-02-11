@@ -66,6 +66,12 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
   return response.json();
 }
 
+// ── Config ────────────────────────────────────────────────
+
+export function getAppConfig() {
+  return api<{ tonNetwork: 'testnet' | 'mainnet' }>('/api/config');
+}
+
 // ── User ───────────────────────────────────────────────────
 
 export function getMe() {
@@ -233,10 +239,6 @@ export function scheduleDealPost(id: number, scheduledAt: string) {
     method: 'PUT',
     body: JSON.stringify({ scheduledAt }),
   });
-}
-
-export function testFundDeal(id: number) {
-  return api<Deal>(`/api/deals/${id}/test-fund`, { method: 'PUT' });
 }
 
 export function getEscrowInfo(id: number) {

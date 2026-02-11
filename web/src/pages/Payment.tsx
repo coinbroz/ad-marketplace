@@ -5,7 +5,7 @@ import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
 import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
 import { CHAIN } from '@tonconnect/sdk';
 import { QRCodeSVG } from 'qrcode.react';
-import { getDeal, getEscrowInfo, testFundDeal } from '../api/client';
+import { getDeal, getEscrowInfo, getAppConfig } from '../api/client';
 
 export function PaymentPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +28,12 @@ export function PaymentPage() {
     refetchInterval: 5000,
   });
 
+  const { data: appConfig } = useQuery({
+    queryKey: ['appConfig'],
+    queryFn: getAppConfig,
+    staleTime: Infinity,
+  });
+
   // Auto-redirect when payment received
   if (deal?.status === 'FUNDED') {
     window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
@@ -40,6 +46,7 @@ export function PaymentPage() {
   const amountNano = Math.round(deal.priceInTon * 1e9).toString();
   const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}`;
   const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}`;
+  const network = appConfig?.tonNetwork === 'mainnet' ? CHAIN.MAINNET : CHAIN.TESTNET;
 
   const copyAddress = () => {
     if (escrow.address) {
@@ -59,7 +66,7 @@ export function PaymentPage() {
     try {
       await tonConnectUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 600,
-        network: CHAIN.TESTNET,
+        network,
         messages: [
           {
             address: escrow.address!,
@@ -156,30 +163,6 @@ export function PaymentPage() {
           Waiting for payment confirmation...
           <br />
           Checking every 30 seconds.
-        </div>
-      </Section>
-
-      {/* Test-only: simulate payment on testnet */}
-      <Section>
-        <div style={{ padding: '0 16px 8px' }}>
-          <Button
-            size="l"
-            stretched
-            mode="outline"
-            onClick={async () => {
-              try {
-                await testFundDeal(dealId);
-                window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
-              } catch (err) {
-                window.Telegram?.WebApp?.showAlert?.((err as Error).message);
-              }
-            }}
-          >
-            Test: Simulate Payment
-          </Button>
-        </div>
-        <div style={{ padding: '0 16px 12px', textAlign: 'center', fontSize: 12, color: 'var(--tg-theme-hint-color)' }}>
-          Testnet only — skips real TON transfer
         </div>
       </Section>
     </div>

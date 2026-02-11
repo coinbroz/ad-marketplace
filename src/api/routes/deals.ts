@@ -17,7 +17,6 @@ import {
 import { getEscrowInfo } from '../../services/ton.js';
 import { prisma } from '../../lib/prisma.js';
 import { notifyUser } from '../../services/telegram.js';
-import { config } from '../../config.js';
 
 export async function dealRoutes(app: FastifyInstance) {
   // List my deals
@@ -244,40 +243,4 @@ export async function dealRoutes(app: FastifyInstance) {
     return getDealEvents(dealId);
   });
 
-  // ── TEST ONLY: simulate payment (testnet only) ──────
-  app.put('/api/deals/:id/test-fund', { preHandler: [requireAuth] }, async (request, reply) => {
-    if (config.TON_NETWORK !== 'testnet') {
-      return reply.status(403).send({ error: 'Only available on testnet' });
-    }
-
-    const { id } = request.params as { id: string };
-    const dealId = parseInt(id, 10);
-    const deal = await getDealById(dealId);
-
-    if (deal.status !== 'AWAITING_PAYMENT') {
-      return reply.status(400).send({ error: `Deal is ${deal.status}, not AWAITING_PAYMENT` });
-    }
-
-    const { transitionDeal } = await import('../../services/deals.js');
-    const updated = await transitionDeal(dealId, 'FUNDED', {
-      paidAt: new Date(),
-      paidTxHash: `test_${Date.now()}`,
-    });
-
-    await prisma.dealEvent.create({
-      data: {
-        dealId,
-        type: 'payment',
-        data: { amount: deal.priceInTon, txHash: `test_${Date.now()}`, test: true },
-      },
-    });
-
-    // Notify both parties
-    await Promise.all([
-      notifyUser(deal.advertiser.telegramId, `💰 <b>Payment received!</b> (test)\n\nDeal #${dealId}\nAmount: ${deal.priceInTon} TON`),
-      notifyUser(deal.channelOwner.telegramId, `💰 <b>Payment received!</b> (test)\n\nDeal #${dealId}\nAmount: ${deal.priceInTon} TON`),
-    ]);
-
-    return updated;
-  });
 }

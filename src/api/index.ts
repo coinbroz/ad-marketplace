@@ -5,12 +5,18 @@ import { campaignRoutes } from './routes/campaigns.js';
 import { dealRoutes } from './routes/deals.js';
 import { requireAuth } from './middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { config } from '../config.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   // Health check (no auth)
   app.get('/health', async () => ({
     status: 'ok',
     timestamp: new Date().toISOString(),
+  }));
+
+  // App config (public, needed by frontend for TON network)
+  app.get('/api/config', async () => ({
+    tonNetwork: config.TON_NETWORK,
   }));
 
   // Auth routes (no auth required)
