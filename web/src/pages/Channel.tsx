@@ -27,6 +27,7 @@ export function ChannelPage({ user }: Props) {
   const [verifying, setVerifying] = useState(false);
   const [languageInput, setLanguageInput] = useState('');
   const [editingLanguage, setEditingLanguage] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState<string>('post');
 
   const { data: channel, isLoading, error } = useQuery({
     queryKey: ['channel', id],
@@ -46,15 +47,19 @@ export function ChannelPage({ user }: Props) {
 
   const isOwner = user?.id === channel.ownerId;
 
+  const selectedPrice = channel?.prices?.find(p => p.format === selectedFormat) || channel?.prices?.[0];
+
   const handleProposeDeal = async () => {
+    if (!selectedPrice) return;
     const tg = window.Telegram?.WebApp;
     if (tg?.showConfirm) {
+      const formatLabel = selectedFormat.charAt(0).toUpperCase() + selectedFormat.slice(1);
       tg.showConfirm(
-        `Propose a deal with ${channel.title} for ${channel.prices[0]?.priceInTon || '?'} TON?`,
+        `Propose a ${formatLabel} deal with ${channel.title} for ${selectedPrice.priceInTon} TON?`,
         async (confirmed: boolean) => {
           if (confirmed) {
             try {
-              const deal = await createDeal(channel.id);
+              const deal = await createDeal(channel.id, selectedFormat);
               tg.HapticFeedback?.notificationOccurred('success');
               navigate(`/deals/${deal.id}`);
             } catch (err) {
@@ -204,16 +209,24 @@ export function ChannelPage({ user }: Props) {
 
       {/* Pricing section */}
       {channel.prices.length > 0 && (
-        <Section header="Ad Pricing">
-          {channel.prices.map((price) => (
-            <Cell
-              key={price.id}
-              after={<Badge type="number">{`${price.priceInTon} TON`}</Badge>}
-              subtitle={price.description || undefined}
-            >
-              {price.format.charAt(0).toUpperCase() + price.format.slice(1)}
-            </Cell>
-          ))}
+        <Section header={isOwner ? 'Ad Pricing' : 'Select Ad Format'}>
+          {channel.prices.map((price) => {
+            const isSelected = !isOwner && selectedFormat === price.format;
+            return (
+              <Cell
+                key={price.id}
+                after={<Badge type="number">{`${price.priceInTon} TON`}</Badge>}
+                subtitle={price.description || undefined}
+                onClick={!isOwner ? () => setSelectedFormat(price.format) : undefined}
+                style={isSelected ? {
+                  background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+                  borderLeft: '3px solid var(--tg-theme-button-color, #3390ec)',
+                } : undefined}
+              >
+                {isSelected ? '✓ ' : ''}{price.format.charAt(0).toUpperCase() + price.format.slice(1)}
+              </Cell>
+            );
+          })}
         </Section>
       )}
 
@@ -269,14 +282,14 @@ export function ChannelPage({ user }: Props) {
       )}
 
       {/* Non-owner: propose deal */}
-      {!isOwner && channel.prices.length > 0 && (
+      {!isOwner && channel.prices.length > 0 && selectedPrice && (
         <Section>
           <Button
             size="l"
             stretched
             onClick={handleProposeDeal}
           >
-            Propose Deal — {channel.prices[0]?.priceInTon} TON
+            Propose {selectedFormat.charAt(0).toUpperCase() + selectedFormat.slice(1)} — {selectedPrice.priceInTon} TON
           </Button>
         </Section>
       )}
