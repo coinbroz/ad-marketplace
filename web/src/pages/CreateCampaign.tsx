@@ -58,20 +58,20 @@ export function CreateCampaignPage({ user }: Props) {
 
       <Section header="Campaign Details">
         <Input
-          header="Title"
-          placeholder="e.g. Crypto Exchange Launch"
+          header="Campaign Title"
+          placeholder="Campaign title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
         <Input
           header="Description / Brief"
-          placeholder="Describe what you want to advertise..."
+          placeholder="What do you want to advertise?"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
         <Input
           header="Budget per post (TON)"
-          placeholder="e.g. 5"
+          placeholder="Budget per post in TON (e.g. 5)"
           type="number"
           value={budgetPerPost}
           onChange={(e) => setBudgetPerPost(e.target.value)}
@@ -81,13 +81,13 @@ export function CreateCampaignPage({ user }: Props) {
       <Section header="Targeting (optional)">
         <LanguageInput
           header="Target Language"
-          placeholder="e.g. English, Russian"
+          placeholder="Target language (e.g. English)"
           value={targetLanguage}
           onChange={setTargetLanguage}
         />
         <Input
           header="Min Subscribers"
-          placeholder="e.g. 1000"
+          placeholder="Min subscribers (e.g. 1000)"
           type="number"
           value={minSubscribers}
           onChange={(e) => setMinSubscribers(e.target.value)}
