@@ -30,6 +30,22 @@ async function main() {
     },
   });
 
+  // ── Handle empty JSON body gracefully ────────────────
+  // PUT/POST with Content-Type: application/json but no body
+  // should not cause 400 Bad Request.
+  app.removeAllContentTypeParsers();
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    try {
+      const str = (body as string).trim();
+      done(null, str ? JSON.parse(str) : undefined);
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
+  app.addContentTypeParser('*', (_req, _payload, done) => {
+    done(null, undefined);
+  });
+
   // ── Global BigInt serializer ──────────────────────────
   // Prisma returns BigInt for telegramId fields. JSON.stringify
   // fails on BigInt, so we override the serializer globally.
