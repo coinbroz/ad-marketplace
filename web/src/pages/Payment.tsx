@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
 import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
+import { CHAIN } from '@tonconnect/sdk';
 import { QRCodeSVG } from 'qrcode.react';
 import { getDeal, getEscrowInfo } from '../api/client';
 
@@ -58,6 +59,7 @@ export function PaymentPage() {
     try {
       await tonConnectUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 600,
+        network: CHAIN.TESTNET,
         messages: [
           {
             address: escrow.address!,
