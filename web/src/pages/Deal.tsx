@@ -405,8 +405,10 @@ export function DealPage({ user }: Props) {
         </div>
       )}
 
-      {/* Refund address — shown to advertiser after cancellation */}
-      {deal.status === 'REFUNDED' && isAdvertiser && <RefundAddressSection dealId={deal.id} deal={deal} queryClient={queryClient} />}
+      {/* Refund address — shown to advertiser after cancellation/refund */}
+      {(deal.status === 'REFUNDED' || (deal.status === 'CANCELLED' && deal.escrowAddress)) && isAdvertiser && (
+        <RefundAddressSection dealId={deal.id} deal={deal} queryClient={queryClient} />
+      )}
 
       {/* Timeline */}
       {events && events.length > 0 && (

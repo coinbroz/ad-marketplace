@@ -293,6 +293,20 @@ export async function dealRoutes(app: FastifyInstance) {
       },
     });
 
+    // If deal is CANCELLED (stuck from before refund fix), trigger refund now
+    if (deal.status === 'CANCELLED' && deal.escrowAddress) {
+      try {
+        await refundFunds(dealId);
+      } catch (err) {
+        console.error(`Late refund failed for deal ${dealId}:`, err);
+      }
+      // Re-fetch after refund
+      return prisma.deal.findUniqueOrThrow({
+        where: { id: dealId },
+        include: { channel: true, advertiser: true, channelOwner: true },
+      });
+    }
+
     return updated;
   });
 

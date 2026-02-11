@@ -18,7 +18,7 @@ const VALID_TRANSITIONS: Record<DealStatus, DealStatus[]> = {
   VERIFIED: ['COMPLETED'],
   COMPLETED: [],
   REFUNDED: [],
-  CANCELLED: [],
+  CANCELLED: ['REFUNDED'],  // Allow refund for cancelled deals that had payment
   DISPUTED: ['REFUNDED', 'COMPLETED'],
   EXPIRED: [],
 };
