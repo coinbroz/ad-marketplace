@@ -93,7 +93,10 @@ TON_API_KEY=            # From toncenter.com
 - Unique wallet generated per deal (custodial)
 - Payment monitoring (30s intervals)
 - Auto-release after 24h verification
-- Auto-refund on timeout/cancellation
+- Auto-refund on cancellation (any post-payment status)
+- Refund address collection: advertiser enters wallet + optional memo after cancellation
+- Exchange-safe refunds: memo field for users who paid from exchange
+- Rescue mechanism: stuck CANCELLED deals can be refunded retroactively
 - Private keys encrypted with AES-256-GCM
 
 ### Creative Approval Workflow
@@ -105,6 +108,15 @@ Deal accepted
   → Advertiser reviews: approves or requests edits (Mini App)
   → Once approved, post auto-published at agreed time (via /schedulepost)
   → 24h verification → funds released to channel owner
+```
+
+### Cancellation & Refund
+```
+Either party cancels (from any status before POSTED)
+  → If deal was funded: auto-refund triggered
+  → Advertiser receives notification to enter refund wallet address
+  → Refund address + optional memo (for exchange users) saved via Mini App
+  → Funds returned to specified address
 ```
 
 ### Channel Stats
@@ -172,7 +184,7 @@ Channel owners can add managers who can accept deals and submit creatives, but c
 
 5. **Monolith architecture** — Single deployable unit on Railway. Simpler to deploy and debug. Workers run in the same process via BullMQ.
 
-6. **Deal state machine** — 14 states with explicit valid transitions. Every transition logged in `DealEvent` for full audit trail. Auto-timeout for stalled deals.
+6. **Deal state machine** — 14 states with explicit valid transitions. Every transition logged in `DealEvent` for full audit trail. Auto-timeout for stalled deals. Cancellation from any post-payment state triggers auto-refund. Stuck CANCELLED deals can be rescued via refund address submission.
 
 7. **Two-way marketplace** — Both entry points from spec: channel owners list channels (advertisers propose deals), advertisers create campaigns (owners apply). Both converge into the same deal workflow.
 

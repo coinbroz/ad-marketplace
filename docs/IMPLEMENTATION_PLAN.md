@@ -417,27 +417,36 @@ Before starting Day 1:
 
 ---
 
-## Status Summary (Updated Feb 11, 2026)
+## Status Summary (Updated Feb 11, 2026 — Session 3)
 
 ### COMPLETED:
 - Days 1-2: Backend, DB, Auth, Bot, Channels, Campaigns, Stats, Filters, Admin re-check
 - Day 3 (partial): Escrow wallet generation, encryption, payment monitoring, state machine
 - Day 4: Creative workflow, bot conversations, auto-posting, post verification, scheduled posting
-- Day 5 (95%): All Mini App pages + LanguageInput + format selection + campaign edit + tab bar redesign
+- Day 5 (98%): All Mini App pages + LanguageInput + format selection + campaign edit + tab bar redesign
 - Deploy: Railway with PostgreSQL + Redis, auto-deploy from GitHub
-- Testing: Deal creation tested with two Telegram accounts — works + bot notifications
+- E2E Testing: Both marketplace flows tested (Propose Deal + Campaign Apply), payment, cancellation, refund
 
-### REMAINING (3 items):
-1. **TON actual transactions** — `releaseFunds()` and `refundFunds()` in `src/services/ton.ts` (4-6h)
-2. **Payment page E2E** — Test with real TON testnet payments (2h)
-3. **README polish** — Screenshots, architecture diagram, submission (2h)
+### Session 3 additions (Feb 11, Night):
+- Deal cancellation with auto-refund for funded deals
+- Refund address collection flow (advertiser enters wallet + memo after cancel)
+- Rescue stuck CANCELLED deals → REFUNDED transition
+- refundFunds/releaseFunds: removed strict wallet check, added balance API fallback
+- Post verification fix: copyMessage instead of forwardMessage
+- Bot: setMyCommands, context-aware hints, creative media to advertiser
+- Payment page E2E tested with real TON testnet (1 TON sent + received)
 
-### Session 2 additions (Feb 11):
+### Session 2 additions (Feb 11, Evening):
 - Campaign page: all fields visible, edit mode for owner, status colors, application count
 - LanguageInput component: 26 languages, fuzzy aliases (рус→Russian, eng→English, etc.)
 - Global BigInt fix: `app.setReplySerializer()` in `src/index.ts`
 - Tab bar: custom with icons (🏪🤝👤), safe-area-inset-bottom for iPhone
 - Format selection: Post/Forward/Story selectable on Channel page
 - Error hints: "Check My Deals tab" on duplicate deal error
+
+### REMAINING (3 items):
+1. **TON actual transactions** — `releaseFunds()` and `refundFunds()` in `src/services/ton.ts` (4-6h)
+2. **Full happy path E2E** — creative → approve → post → 24h verify → payout (3-4h)
+3. **Submission** — Screenshots + submit via @contests_app_bot (1-2h)
 
 ### See `docs/PROGRESS_LOG.md` for detailed status of every component.

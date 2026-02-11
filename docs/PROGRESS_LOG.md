@@ -8,6 +8,97 @@
 
 ---
 
+## Session 3 — Feb 11 (Night) — E2E Testing & Refund Flow
+
+### What Was Done
+
+#### 1. Bot Commands — setMyCommands
+- Registered all commands with Telegram via `bot.api.setMyCommands()`
+- Users now see command hints when typing `/` in chat
+
+#### 2. Deal Notification Improvements
+- Context-aware hints in deal page: split by brief status (submitted/not submitted)
+- Clear next-step instructions in all bot notifications (who does what next)
+- Send actual creative media (photo/video/document) to advertiser for review
+- Improved submitCreative UX: show clear instruction after reference materials
+
+#### 3. Post Verification Fixes
+- Fixed: `forwardMessage` to self doesn't work → replaced with `copyMessage` + delete
+- Restored 24h verification period after testing with 10min interval
+- Updated README docs for post verification approach
+
+#### 4. Deal Cancellation — Complete Fix
+- **Bug found:** Cancelling a funded deal → status "Cancelled" but money stayed in escrow
+- **Root cause 1:** Cancel endpoint didn't call `refundFunds()` for funded deals
+- **Root cause 2:** State machine only allowed `FUNDED → REFUNDED`, not from later states
+- **Fix:** Cancel endpoint now checks `FUNDED_STATUSES` and calls `refundFunds()` first
+- **Fix:** Added `REFUNDED` as valid transition from all post-payment states
+
+#### 5. Refund/Payout — Remove Strict Wallet Requirement
+- `refundFunds()` threw error if advertiser had no wallet address set
+- `releaseFunds()` same issue for channel owner
+- Fixed: use `'pending'` placeholder since actual TON transfers are placeholder anyway
+- Added try/catch fallback for `getWalletBalance()` → use `deal.priceInTon` if API fails
+
+#### 6. Refund Address Collection Flow (NEW FEATURE)
+- **Prisma:** Added `refundAddress` and `refundMemo` fields to Deal model
+- **Migration:** `prisma/migrations/20260211_add_refund_address/migration.sql`
+- **API:** `PUT /api/deals/:id/refund-address` — advertiser enters wallet + optional memo
+- **UI:** `RefundAddressSection` component on Deal page
+  - Shows for REFUNDED and CANCELLED (with escrow) deals
+  - Two inputs: wallet address + memo (for exchange users)
+  - Instructions about exchange vs personal wallet
+  - Save button with haptic feedback
+- **Payment page:** Added refund policy note
+- **Bot notification:** Cancel message tells advertiser to open Mini App for refund address
+- **Timeline:** Added `refund_address` event type formatting
+
+#### 7. Rescue Stuck CANCELLED Deals
+- Added `CANCELLED → REFUNDED` transition in state machine
+- Show refund form for CANCELLED deals with escrowAddress
+- When advertiser saves refund address on CANCELLED deal → triggers `refundFunds()` automatically
+
+### Commits (Session 3)
+```
+141548e Allow refund for stuck CANCELLED deals with escrow balance
+d1e9de1 Add refund address flow: advertiser enters wallet after cancellation
+33f2c32 Fix refund/payout: remove strict wallet address requirement
+a2fa3b2 Fix deal cancellation: auto-refund for funded deals
+9e127a6 Improve CreateCampaign form placeholders for clarity
+de3eeb1 Update README: add submitbrief, fix post verification docs, expand key decisions
+3e45ba9 Restore post verification period to 24 hours
+154c67f Fix post verification: use copyMessage instead of forwardMessage to self
+7f66b7e Add clear next-step instructions to all deal notifications
+a7ab09e Send actual creative media to advertiser + clear approve instructions
+90fa761 Improve submitCreative UX: show clear instruction after reference materials
+3ccafc9 Context-aware deal hints: split by brief status
+da20c1f Register bot commands with Telegram setMyCommands API
+```
+
+### What We Tested (Session 3)
+- [x] Campaign creation → visible in Marketplace → campaign detail page works
+- [x] Campaign → Apply flow (channel owner applies to campaign) → deal created
+- [x] Both roles assigned correctly (advertiser vs channel_owner)
+- [x] Payment: TON sent to escrow → balance visible on tonscan
+- [x] Payment monitoring: deal transitioned to FUNDED
+- [x] Deal cancellation from FUNDED status → Cancelled
+- [x] **Bug found & fixed:** Cancel didn't trigger refund → money stuck in escrow
+- [x] Refund address flow: form appears on cancelled deal → save works
+- [x] Bot notifications: all deal events notify both parties with next-step hints
+- [x] Post verification: copyMessage approach works, 24h timer active
+- [x] submitCreative: media sent to advertiser, clear UX flow
+
+### Bugs Found & Fixed (Session 3)
+1. **Cancel didn't refund funded deals** — cancel endpoint never called `refundFunds()`
+2. **State machine blocked refund** — only FUNDED→REFUNDED was valid, not CREATIVE_DRAFT/etc→REFUNDED
+3. **refundFunds() threw on missing wallet** — strict check for `tonWalletAddress` even though TX is placeholder
+4. **releaseFunds() same issue** — strict wallet check for channel owner
+5. **getWalletBalance() failure blocked refund** — no try/catch, API error = deal stuck
+6. **Stuck CANCELLED deals** — no way to rescue deals that were cancelled before refund fix
+7. **forwardMessage to self fails** — post verification used forwardMessage which returns error
+
+---
+
 ## Session 2 — Feb 11 (Evening)
 
 ### What Was Done
@@ -150,16 +241,19 @@ eb2e114 Fix deployment: optional HOT_WALLET_MNEMONIC, add initial migration
 | Deal events / timeline | DONE | `GET /api/deals/:id/events` |
 | Deal expiration timeouts | DONE | Per-status timeouts in state machine |
 
-### TON Escrow — 80%
+### TON Escrow — 90%
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Wallet generation (per deal) | DONE | `src/utils/ton-wallet.ts` — WalletContractV4, random keypair |
 | AES-256-GCM encryption | DONE | Secret keys encrypted, stored in EscrowWallet table |
 | Payment monitoring worker | DONE | `src/workers/payment-monitor.ts` — checks balance every 30s |
-| Balance check via toncenter | DONE | `getWalletBalance()` |
+| Balance check via toncenter | DONE | `getWalletBalance()` with try/catch fallback |
 | Escrow info for Mini App | DONE | Address, balance, explorer links, TX hashes |
 | Partial payment notification | DONE | Notifies both parties |
+| Cancel → auto-refund | DONE | Cancelling funded deal triggers `refundFunds()` |
+| Refund address collection | DONE | `PUT /api/deals/:id/refund-address` + UI form |
+| Stuck deal rescue | DONE | CANCELLED → REFUNDED transition + auto-trigger on address save |
 | **releaseFunds()** | **TODO** | Logic + calculations done, **actual TON transaction is placeholder** |
 | **refundFunds()** | **TODO** | Logic + calculations done, **actual TON transaction is placeholder** |
 | **Hot wallet → escrow gas** | **TODO** | Deploy + gas fee transfer not implemented |
@@ -188,7 +282,7 @@ eb2e114 Fix deployment: optional HOT_WALLET_MNEMONIC, add initial migration
 | `/schedulepost` | DONE | Grammy conversation — now or datetime |
 | Notifications | DONE | All deal events notify both parties |
 
-### Mini App (React) — 95%
+### Mini App (React) — 98%
 
 | Page | Status | Notes |
 |------|--------|-------|
@@ -196,14 +290,15 @@ eb2e114 Fix deployment: optional HOT_WALLET_MNEMONIC, add initial migration
 | Marketplace (campaigns tab) | DONE | Search, filters, campaign cards, "+ Create Campaign" |
 | Channel detail | DONE | Stats, prices, language edit, verify bot, **format selection** for propose deal |
 | Campaign detail | DONE | All fields, status colors, application count, **edit mode for owner**, apply with channel |
-| Create Campaign | DONE | Form: title, description, budget, **LanguageInput autocomplete**, min subs |
-| Deal detail | DONE | Status, actions, escrow info, events timeline, polling |
+| Create Campaign | DONE | Form: title, description, budget, **LanguageInput autocomplete**, min subs, self-descriptive placeholders |
+| Deal detail | DONE | Status, actions, escrow info, events timeline, polling, **RefundAddressSection** |
 | Deals list | DONE | Active/Completed filter, color-coded statuses |
 | Profile | DONE | Info, wallet, channels (clickable), campaigns, add channel with **LanguageInput** |
-| **Payment page** | EXISTS | `web/src/pages/Payment.tsx` — needs E2E testing |
+| Payment page | DONE | QR + address + deeplinks (Tonkeeper) + TON Connect + refund policy note, **E2E tested** |
 | Tab bar | DONE | Custom with icons (🏪🤝👤), safe-area-inset-bottom, large touch targets |
 | Auth flow | DONE | Telegram initData → JWT → auto-refresh |
 | **LanguageInput** component | DONE | 26 languages, fuzzy aliases (рус/eng/etc.), keyboard nav |
+| **RefundAddressSection** | DONE | Wallet address + memo input for refund, shows on CANCELLED/REFUNDED deals |
 
 ### Deploy — 100%
 
@@ -220,10 +315,10 @@ eb2e114 Fix deployment: optional HOT_WALLET_MNEMONIC, add initial migration
 
 ---
 
-## What's NOT Done (3 Critical Items)
+## What's NOT Done (Critical Items)
 
 ### 1. TON Actual Transactions (releaseFunds / refundFunds)
-**File:** `src/services/ton.ts`, lines ~131 and ~211
+**File:** `src/services/ton.ts`
 **Problem:** The functions have all the business logic (calculate amounts, decrypt keys, platform fee, gas reserve) but the actual TON blockchain transaction is a **TODO placeholder**. No real TON is sent.
 **What's needed:**
 - Hot wallet sends ~0.05 TON gas to escrow address
@@ -233,55 +328,44 @@ eb2e114 Fix deployment: optional HOT_WALLET_MNEMONIC, add initial migration
 **Estimate:** ~4-6 hours
 **Priority:** HIGH — escrow is the core feature
 
-### 2. Payment Page E2E Testing
-**File:** `web/src/pages/Payment.tsx`
-**Problem:** Page exists but hasn't been tested end-to-end with real TON testnet payments
+### 2. Full E2E Happy Path Testing
 **What's needed:**
-- Test the full flow: create deal → get escrow address → send testnet TON → verify FUNDED status
-- QR code generation for payment
-- Deeplinks for Tonkeeper / TON Space
-**Estimate:** ~2 hours (testing + fixes)
+- Test complete happy path: deal → pay → creative → approve → publish → 24h verify → payout
+- Test refund flow with new refund address form
+- Verify deal timeout/expiry worker
+- Test dispute scenario (post deletion before 24h)
+**Estimate:** ~3-4 hours
 **Priority:** HIGH
 
-### 3. README + Submission Polish
-**Problem:** README needs final content for submission
+### 3. Submission Polish
 **What's needed:**
-- Screenshots/GIFs of the app
-- Architecture section with Mermaid diagram
-- Known limitations (language charts, premium stats — API limitations)
-- Quick start (3 commands)
-- Deploy guide
-- AI percentage (~85% AI, review/testing by human)
-**Estimate:** ~2 hours
+- Screenshots of the Mini App (all pages)
+- Final README review
+- Submit via @contests_app_bot
+**Estimate:** ~1-2 hours
 **Priority:** HIGH — required for submission
 
 ---
 
-## Today's Plan (Feb 11)
+## Remaining Plan (Feb 12-15)
 
-### Priority 1: TON Transactions (4-6h)
+### Priority 1: TON Actual Transactions (4-6h)
 Implement actual TON sending in `releaseFunds()` and `refundFunds()`:
 1. Hot wallet gas transfer to escrow
 2. Deploy escrow wallet contract
 3. Sign + send transfer (escrow → target)
 4. Test on testnet
 
-### Priority 2: End-to-End Testing (3h)
+### Priority 2: Full Happy Path E2E (3-4h)
 With two Telegram accounts:
-1. Flow 1: Advertiser → Channel (propose deal → accept → pay → creative → post → verify → payout)
-2. Flow 2: Owner → Campaign (apply → accept → pay → creative → post → verify → payout)
-3. Refund/timeout flow
-4. Bot notification verification
+1. Happy path: deal → pay → creative → approve → post → 24h verify → payout
+2. Cancel + refund address flow (already partially tested)
+3. Deal timeout/expiry worker verification
+4. Dispute scenario: post deletion before 24h
 
-### Priority 3: UI Polish (2h)
-- Test Payment page (QR + deeplinks)
-- Fix any bugs found during E2E testing
-- Loading/error states
-
-### Priority 4: README + Submission (2h)
-- Screenshots/GIFs
-- Final README polish
-- Known limitations update
+### Priority 3: Final Polish + Submission (2h)
+- Screenshots of all pages
+- Final README review
 - Submit via @contests_app_bot
 
 ---
