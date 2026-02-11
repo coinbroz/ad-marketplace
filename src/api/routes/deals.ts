@@ -139,17 +139,58 @@ export async function dealRoutes(app: FastifyInstance) {
     return updatedDeal;
   });
 
-  // Reject / cancel deal
+  // Reject deal (from PENDING)
   app.put('/api/deals/:id/reject', { preHandler: [requireAuth] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const dealId = parseInt(id, 10);
-    return cancelDeal(dealId, request.userId);
+    const deal = await cancelDeal(dealId, request.userId);
+
+    // Notify the other party
+    const otherTelegramId = request.userId === deal.advertiserId
+      ? deal.channelOwner.telegramId
+      : deal.advertiser.telegramId;
+    const cancellerName = request.userId === deal.advertiserId
+      ? deal.advertiser.firstName
+      : deal.channelOwner.firstName;
+
+    await notifyUser(
+      otherTelegramId,
+      `❌ <b>Deal rejected</b>\n\n` +
+      `Deal #${dealId}\n` +
+      `Channel: ${deal.channel.title}\n` +
+      `By: ${cancellerName}\n\n` +
+      `The deal proposal was rejected.`,
+    );
+
+    return deal;
   });
 
+  // Cancel deal (from any active status)
   app.put('/api/deals/:id/cancel', { preHandler: [requireAuth] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const dealId = parseInt(id, 10);
-    return cancelDeal(dealId, request.userId);
+    const deal = await cancelDeal(dealId, request.userId);
+
+    // Notify the other party
+    const otherTelegramId = request.userId === deal.advertiserId
+      ? deal.channelOwner.telegramId
+      : deal.advertiser.telegramId;
+    const cancellerName = request.userId === deal.advertiserId
+      ? deal.advertiser.firstName
+      : deal.channelOwner.firstName;
+
+    await notifyUser(
+      otherTelegramId,
+      `🚫 <b>Deal cancelled</b>\n\n` +
+      `Deal #${dealId}\n` +
+      `Channel: ${deal.channel.title}\n` +
+      `Price: ${deal.priceInTon} TON\n` +
+      `Cancelled by: ${cancellerName}\n\n` +
+      `The deal has been cancelled.` +
+      (deal.escrowAddress ? `\n\nIf payment was made, a refund will be processed automatically.` : ''),
+    );
+
+    return deal;
   });
 
   // Submit creative (with admin re-check)
