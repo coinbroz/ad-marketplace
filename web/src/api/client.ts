@@ -235,6 +235,10 @@ export function scheduleDealPost(id: number, scheduledAt: string) {
   });
 }
 
+export function testFundDeal(id: number) {
+  return api<Deal>(`/api/deals/${id}/test-fund`, { method: 'PUT' });
+}
+
 export function getEscrowInfo(id: number) {
   return api<EscrowInfo>(`/api/deals/${id}/escrow`);
 }

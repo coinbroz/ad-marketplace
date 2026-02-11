@@ -5,7 +5,7 @@ import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
 import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
 import { CHAIN } from '@tonconnect/sdk';
 import { QRCodeSVG } from 'qrcode.react';
-import { getDeal, getEscrowInfo } from '../api/client';
+import { getDeal, getEscrowInfo, testFundDeal } from '../api/client';
 
 export function PaymentPage() {
   const { id } = useParams<{ id: string }>();
@@ -156,6 +156,30 @@ export function PaymentPage() {
           Waiting for payment confirmation...
           <br />
           Checking every 30 seconds.
+        </div>
+      </Section>
+
+      {/* Test-only: simulate payment on testnet */}
+      <Section>
+        <div style={{ padding: '0 16px 8px' }}>
+          <Button
+            size="l"
+            stretched
+            mode="outline"
+            onClick={async () => {
+              try {
+                await testFundDeal(dealId);
+                window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+              } catch (err) {
+                window.Telegram?.WebApp?.showAlert?.((err as Error).message);
+              }
+            }}
+          >
+            Test: Simulate Payment
+          </Button>
+        </div>
+        <div style={{ padding: '0 16px 12px', textAlign: 'center', fontSize: 12, color: 'var(--tg-theme-hint-color)' }}>
+          Testnet only — skips real TON transfer
         </div>
       </Section>
     </div>
