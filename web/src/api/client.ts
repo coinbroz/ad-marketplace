@@ -36,11 +36,17 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
     await authenticate();
   }
 
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${authToken}`,
+  };
+  if (options?.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(path, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${authToken}`,
+      ...headers,
       ...options?.headers,
     },
   });
