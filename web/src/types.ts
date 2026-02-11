@@ -75,6 +75,7 @@ export interface Deal {
   scheduledAt: string | null;
   postedAt: string | null;
   postMessageId: number | null;
+  expiresAt: string | null;
   createdAt: string;
   updatedAt: string;
   channel?: { id: number; title: string; username: string | null; subscriberCount: number };

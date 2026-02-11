@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Section, Cell, Badge, Button, Placeholder } from '@telegram-apps/telegram-ui';
+import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
 import {
   getDeal,
   getEscrowInfo,
@@ -17,6 +17,52 @@ interface Props {
   user: User | null;
 }
 
+const statusColors: Record<string, string> = {
+  PENDING: '#FF9500',
+  ACCEPTED: '#007AFF',
+  AWAITING_PAYMENT: '#FF9500',
+  FUNDED: '#34C759',
+  CREATIVE_DRAFT: '#007AFF',
+  CREATIVE_REVIEW: '#FF9500',
+  CREATIVE_APPROVED: '#34C759',
+  SCHEDULED: '#007AFF',
+  POSTED: '#34C759',
+  VERIFIED: '#34C759',
+  COMPLETED: '#34C759',
+  CANCELLED: '#FF3B30',
+  EXPIRED: '#8E8E93',
+  REFUNDED: '#8E8E93',
+  DISPUTED: '#FF3B30',
+};
+
+const statusLabels: Record<string, string> = {
+  PENDING: 'Pending Approval',
+  ACCEPTED: 'Accepted',
+  AWAITING_PAYMENT: 'Awaiting Payment',
+  FUNDED: 'Payment Received',
+  CREATIVE_DRAFT: 'Creative in Progress',
+  CREATIVE_REVIEW: 'Creative Under Review',
+  CREATIVE_APPROVED: 'Creative Approved',
+  SCHEDULED: 'Scheduled',
+  POSTED: 'Posted — Verifying',
+  VERIFIED: 'Verified',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+  EXPIRED: 'Expired',
+  REFUNDED: 'Refunded',
+  DISPUTED: 'Disputed',
+};
+
+function formatTimeLeft(expiresAt: string | null): string | null {
+  if (!expiresAt) return null;
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return 'Expiring soon...';
+  const hours = Math.floor(diff / 3600_000);
+  const minutes = Math.floor((diff % 3600_000) / 60_000);
+  if (hours > 0) return `${hours}h ${minutes}m left`;
+  return `${minutes}m left`;
+}
+
 export function DealPage({ user }: Props) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -26,7 +72,7 @@ export function DealPage({ user }: Props) {
   const { data: deal, isLoading } = useQuery({
     queryKey: ['deal', dealId],
     queryFn: () => getDeal(dealId),
-    refetchInterval: 10000, // Poll every 10s
+    refetchInterval: 10000,
   });
 
   const { data: escrow } = useQuery({
@@ -68,22 +114,182 @@ export function DealPage({ user }: Props) {
     (deal.initiatedBy === 'advertiser' && isOwner) ||
     (deal.initiatedBy === 'channel_owner' && isAdvertiser)
   );
-  const canReject = deal.status === 'PENDING';
   const canCancel = !['COMPLETED', 'REFUNDED', 'CANCELLED', 'EXPIRED', 'POSTED', 'VERIFIED'].includes(deal.status);
   const canApproveCreative = deal.status === 'CREATIVE_REVIEW' && isAdvertiser;
-  const canRequestEdit = deal.status === 'CREATIVE_REVIEW' && isAdvertiser;
   const showPayment = deal.status === 'AWAITING_PAYMENT' && isAdvertiser;
+
+  const timeLeft = formatTimeLeft(deal.expiresAt);
 
   return (
     <div>
-      <Section header={`Deal #${deal.id}`}>
-        <Cell subtitle="Channel">{deal.channel?.title}</Cell>
-        <Cell subtitle="Status">
-          <span style={{ fontWeight: 600 }}>{deal.status.replace(/_/g, ' ')}</span>
-        </Cell>
+      {/* Status Banner */}
+      <div style={{
+        padding: '16px',
+        background: `${statusColors[deal.status] || '#8E8E93'}15`,
+        borderBottom: `2px solid ${statusColors[deal.status] || '#8E8E93'}`,
+      }}>
+        <div style={{ fontSize: 13, color: 'var(--tg-theme-hint-color, #999)' }}>
+          Deal #{deal.id} · {deal.channel?.title}
+        </div>
+        <div style={{
+          fontSize: 20,
+          fontWeight: 700,
+          color: statusColors[deal.status] || '#8E8E93',
+          marginTop: 4,
+        }}>
+          {statusLabels[deal.status] || deal.status}
+        </div>
+        {timeLeft && (
+          <div style={{ fontSize: 13, color: 'var(--tg-theme-hint-color, #999)', marginTop: 4 }}>
+            Auto-cancel in {timeLeft}
+          </div>
+        )}
+      </div>
+
+      {/* Primary Actions — shown right after status for visibility */}
+      {(canAccept || showPayment || canApproveCreative) && (
+        <div style={{ padding: '12px 16px' }}>
+          {canAccept && (
+            <>
+              <Button size="l" stretched onClick={() => acceptMutation.mutate()} loading={acceptMutation.isPending}>
+                Accept Deal
+              </Button>
+              <div style={{ height: 8 }} />
+              <Button size="l" stretched mode="outline" onClick={() => rejectMutation.mutate()} loading={rejectMutation.isPending}>
+                Reject
+              </Button>
+            </>
+          )}
+
+          {showPayment && (
+            <Button size="l" stretched onClick={() => navigate(`/deals/${deal.id}/pay`)}>
+              Pay {deal.priceInTon} TON
+            </Button>
+          )}
+
+          {canApproveCreative && (
+            <>
+              <Button size="l" stretched onClick={() => approveMutation.mutate()} loading={approveMutation.isPending}>
+                Approve Creative
+              </Button>
+              <div style={{ height: 8 }} />
+              <Button
+                size="l"
+                stretched
+                mode="outline"
+                onClick={() => {
+                  const comment = prompt('Enter edit comment:');
+                  if (comment) {
+                    requestEdit(dealId, comment).then(() => {
+                      queryClient.invalidateQueries({ queryKey: ['deal', dealId] });
+                    });
+                  }
+                }}
+              >
+                Request Edits
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Waiting hints for the party who can't act right now */}
+      {deal.status === 'AWAITING_PAYMENT' && isOwner && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Waiting for the advertiser to pay. The deal will auto-cancel if not paid in time. You can also cancel it manually below.
+        </div>
+      )}
+
+      {deal.status === 'PENDING' && !canAccept && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Waiting for the other party to accept. The deal will expire automatically if not accepted in time.
+        </div>
+      )}
+
+      {deal.status === 'FUNDED' && isOwner && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Payment received! Use the bot to submit your creative: send /submitcreative to @channelescrow_bot
+        </div>
+      )}
+
+      {deal.status === 'FUNDED' && isAdvertiser && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Payment confirmed! Waiting for the channel owner to submit the creative draft.
+        </div>
+      )}
+
+      {deal.status === 'CREATIVE_REVIEW' && isOwner && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Your creative is under review by the advertiser.
+        </div>
+      )}
+
+      {deal.status === 'CREATIVE_APPROVED' && isOwner && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Creative approved! Use the bot to schedule posting: send /schedulepost to @channelescrow_bot
+        </div>
+      )}
+
+      {deal.status === 'POSTED' && (
+        <div style={{
+          padding: '12px 16px',
+          background: '#34C75915',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-text-color, #333)',
+        }}>
+          Post published! Verifying it stays in the channel for 24 hours before releasing funds.
+        </div>
+      )}
+
+      {/* Deal Details */}
+      <Section header="Details">
         <Cell subtitle="Price">{deal.priceInTon} TON</Cell>
         <Cell subtitle="Format">{deal.format}</Cell>
-        <Cell subtitle="Role">{isAdvertiser ? 'Advertiser' : 'Channel Owner'}</Cell>
+        <Cell subtitle="Your role">{isAdvertiser ? 'Advertiser' : 'Channel Owner'}</Cell>
         {deal.brief && <Cell subtitle="Brief">{deal.brief}</Cell>}
         {deal.campaign && <Cell subtitle="Campaign">{deal.campaign.title}</Cell>}
       </Section>
@@ -92,7 +298,7 @@ export function DealPage({ user }: Props) {
       {escrow && (
         <Section header="Escrow">
           <Cell
-            subtitle="Tap to copy"
+            subtitle="Tap to copy address"
             onClick={() => {
               if (escrow.address) {
                 navigator.clipboard.writeText(escrow.address);
@@ -144,78 +350,31 @@ export function DealPage({ user }: Props) {
             <Cell subtitle="Media">{deal.creativeMediaType} attached</Cell>
           )}
           {deal.editComment && (
-            <Cell subtitle="Edit comment" style={{ color: '#f0ad4e' }}>
+            <Cell subtitle="Edit requested" style={{ color: '#f0ad4e' }}>
               {deal.editComment}
             </Cell>
           )}
         </Section>
       )}
 
-      {/* Actions */}
-      <Section>
-        {canAccept && (
-          <Button size="l" stretched onClick={() => acceptMutation.mutate()} loading={acceptMutation.isPending}>
-            Accept Deal
+      {/* Cancel — always visible when possible, separated from primary actions */}
+      {canCancel && !canAccept && (
+        <div style={{ padding: '8px 16px' }}>
+          <Button
+            size="l"
+            stretched
+            mode="outline"
+            onClick={() => {
+              window.Telegram?.WebApp?.showConfirm?.('Cancel this deal?', (ok: boolean) => {
+                if (ok) cancelMutation.mutate();
+              });
+            }}
+            loading={cancelMutation.isPending}
+          >
+            Cancel Deal
           </Button>
-        )}
-
-        {canReject && (
-          <div style={{ padding: '8px 0' }}>
-            <Button size="l" stretched mode="outline" onClick={() => rejectMutation.mutate()} loading={rejectMutation.isPending}>
-              Reject
-            </Button>
-          </div>
-        )}
-
-        {showPayment && (
-          <Button size="l" stretched onClick={() => navigate(`/deals/${deal.id}/pay`)}>
-            Pay {deal.priceInTon} TON
-          </Button>
-        )}
-
-        {canApproveCreative && (
-          <>
-            <Button size="l" stretched onClick={() => approveMutation.mutate()} loading={approveMutation.isPending}>
-              Approve Creative
-            </Button>
-            <div style={{ padding: '8px 0' }}>
-              <Button
-                size="l"
-                stretched
-                mode="outline"
-                onClick={() => {
-                  const comment = prompt('Enter edit comment:');
-                  if (comment) {
-                    requestEdit(dealId, comment).then(() => {
-                      queryClient.invalidateQueries({ queryKey: ['deal', dealId] });
-                    });
-                  }
-                }}
-              >
-                Request Edits
-              </Button>
-            </div>
-          </>
-        )}
-
-        {canCancel && (
-          <div style={{ padding: '8px 0' }}>
-            <Button
-              size="l"
-              stretched
-              mode="outline"
-              onClick={() => {
-                window.Telegram?.WebApp?.showConfirm?.('Cancel this deal?', (ok: boolean) => {
-                  if (ok) cancelMutation.mutate();
-                });
-              }}
-              loading={cancelMutation.isPending}
-            >
-              Cancel Deal
-            </Button>
-          </div>
-        )}
-      </Section>
+        </div>
+      )}
 
       {/* Timeline */}
       {events && events.length > 0 && (
@@ -239,14 +398,15 @@ function formatEventType(type: string, data: Record<string, unknown> | null): st
     case 'status_change': {
       const from = data?.from as string;
       const to = data?.to as string;
-      return from ? `${from} → ${to}` : `Created (${to})`;
+      const label = to ? (statusLabels[to] || to) : type;
+      return from ? `${statusLabels[from] || from} → ${label}` : `Created`;
     }
     case 'payment':
       return `Payment: ${data?.amount} TON`;
     case 'post_edit':
-      return 'Post edited';
+      return 'Post was edited';
     case 'post_delete':
-      return 'Post deleted';
+      return 'Post was deleted!';
     default:
       return type;
   }
