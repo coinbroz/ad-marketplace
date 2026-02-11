@@ -14,7 +14,7 @@ import {
   getDealEvents,
   moveToPayment,
 } from '../../services/deals.js';
-import { getEscrowInfo } from '../../services/ton.js';
+import { getEscrowInfo, refundFunds } from '../../services/ton.js';
 import { prisma } from '../../lib/prisma.js';
 import { notifyUser } from '../../services/telegram.js';
 
@@ -169,7 +169,43 @@ export async function dealRoutes(app: FastifyInstance) {
   app.put('/api/deals/:id/cancel', { preHandler: [requireAuth] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const dealId = parseInt(id, 10);
-    const deal = await cancelDeal(dealId, request.userId);
+
+    // Check if deal is in a funded state — trigger refund automatically
+    const FUNDED_STATUSES = ['FUNDED', 'CREATIVE_DRAFT', 'CREATIVE_REVIEW', 'CREATIVE_APPROVED', 'SCHEDULED'];
+    const currentDeal = await prisma.deal.findUniqueOrThrow({
+      where: { id: dealId },
+      include: {
+        advertiser: { select: { telegramId: true, firstName: true } },
+        channelOwner: { select: { telegramId: true, firstName: true } },
+        channel: { select: { title: true } },
+      },
+    });
+
+    // Auth check
+    if (request.userId !== currentDeal.advertiserId && request.userId !== currentDeal.channelOwnerId) {
+      return reply.status(403).send({ error: 'Not authorized to cancel this deal' });
+    }
+
+    let deal;
+    if (FUNDED_STATUSES.includes(currentDeal.status)) {
+      // Funded deal — refund first, then status becomes REFUNDED
+      try {
+        await refundFunds(dealId);
+      } catch (err) {
+        console.error(`Refund failed for cancelled deal ${dealId}:`, err);
+        // Fall back to simple cancel if refund fails
+      }
+      deal = await prisma.deal.findUniqueOrThrow({
+        where: { id: dealId },
+        include: { channel: true, advertiser: true, channelOwner: true },
+      });
+      // If refund didn't transition (e.g. no balance), cancel manually
+      if (FUNDED_STATUSES.includes(deal.status)) {
+        deal = await cancelDeal(dealId, request.userId);
+      }
+    } else {
+      deal = await cancelDeal(dealId, request.userId);
+    }
 
     // Notify the other party
     const otherTelegramId = request.userId === deal.advertiserId
@@ -179,6 +215,7 @@ export async function dealRoutes(app: FastifyInstance) {
       ? deal.advertiser.firstName
       : deal.channelOwner.firstName;
 
+    const isRefunded = deal.status === 'REFUNDED';
     await notifyUser(
       otherTelegramId,
       `🚫 <b>Deal cancelled</b>\n\n` +
@@ -186,8 +223,9 @@ export async function dealRoutes(app: FastifyInstance) {
       `Channel: ${deal.channel.title}\n` +
       `Price: ${deal.priceInTon} TON\n` +
       `Cancelled by: ${cancellerName}\n\n` +
-      `The deal has been cancelled.` +
-      (deal.escrowAddress ? `\n\nIf payment was made, a refund will be processed automatically.` : ''),
+      (isRefunded
+        ? `The deal has been cancelled. Refund has been processed to the advertiser's wallet.`
+        : `The deal has been cancelled.`),
     );
 
     return deal;
