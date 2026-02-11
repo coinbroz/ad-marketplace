@@ -9,14 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.66.0",
+    "@telegram-apps/sdk": "^3.3.9",
+    "@telegram-apps/sdk-react": "^3.3.9",
+    "@telegram-apps/telegram-ui": "^2.1.13",
+    "@tonconnect/ui-react": "^2.4.1",
+    "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.1",
-    "@telegram-apps/telegram-ui": "^2.1.13",
-    "@telegram-apps/sdk-react": "^3.3.9",
-    "@telegram-apps/sdk": "^3.3.9",
-    "@tanstack/react-query": "^5.66.0",
-    "qrcode.react": "^4.2.0"
+    "react-router-dom": "^6.28.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.18",

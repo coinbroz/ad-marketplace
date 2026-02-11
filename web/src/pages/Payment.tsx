@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
+import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { getDeal, getEscrowInfo } from '../api/client';
 
@@ -8,6 +10,9 @@ export function PaymentPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const dealId = parseInt(id!, 10);
+  const [tonConnectUI] = useTonConnectUI();
+  const wallet = useTonWallet();
+  const [sending, setSending] = useState(false);
 
   const { data: deal } = useQuery({
     queryKey: ['deal', dealId],
@@ -31,8 +36,9 @@ export function PaymentPage() {
 
   if (!deal || !escrow) return <Placeholder description="Loading payment..." />;
 
-  const tonkeeperUrl = `ton://transfer/${escrow.address}?amount=${Math.round(deal.priceInTon * 1e9)}&text=Deal%23${dealId}`;
-  const tonSpaceUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${Math.round(deal.priceInTon * 1e9)}`;
+  const amountNano = Math.round(deal.priceInTon * 1e9).toString();
+  const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}`;
+  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}`;
 
   const copyAddress = () => {
     if (escrow.address) {
@@ -42,12 +48,41 @@ export function PaymentPage() {
     }
   };
 
+  const handleTonConnect = async () => {
+    if (!wallet) {
+      await tonConnectUI.openModal();
+      return;
+    }
+
+    setSending(true);
+    try {
+      await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 600,
+        messages: [
+          {
+            address: escrow.address!,
+            amount: amountNano,
+          },
+        ],
+      });
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    } catch (err) {
+      if ((err as Error).message?.includes('Interrupted') || (err as Error).message?.includes('Cancelled')) {
+        // User cancelled — do nothing
+      } else {
+        window.Telegram?.WebApp?.showAlert?.(`Payment error: ${(err as Error).message}`);
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div>
       <Section header={`Pay ${deal.priceInTon} TON`}>
         <div style={{ textAlign: 'center', padding: '20px' }}>
           <div style={{ marginBottom: 16, fontSize: 14, color: 'var(--tg-theme-hint-color)' }}>
-            Scan QR or use the address below
+            Scan QR or pay with connected wallet
           </div>
 
           <div style={{
@@ -57,11 +92,34 @@ export function PaymentPage() {
             borderRadius: 12,
           }}>
             <QRCodeSVG
-              value={tonkeeperUrl}
+              value={tonTransferUrl}
               size={200}
               level="M"
             />
           </div>
+        </div>
+      </Section>
+
+      <Section header="Pay with Wallet">
+        <div style={{ padding: '0 16px 8px' }}>
+          <Button
+            size="l"
+            stretched
+            onClick={handleTonConnect}
+            loading={sending}
+          >
+            {wallet ? `Pay ${deal.priceInTon} TON` : 'Connect Wallet & Pay'}
+          </Button>
+        </div>
+        <div style={{ padding: '0 16px 8px' }}>
+          <Button
+            size="l"
+            stretched
+            mode="outline"
+            onClick={() => window.open(tonkeeperUrl, '_blank')}
+          >
+            Open in Tonkeeper
+          </Button>
         </div>
       </Section>
 
@@ -78,26 +136,6 @@ export function PaymentPage() {
         </Cell>
         <Cell subtitle="Amount">{deal.priceInTon} TON</Cell>
         <Cell subtitle="Current balance">{escrow.currentBalance} TON</Cell>
-      </Section>
-
-      <Section header="Quick Pay">
-        <Button
-          size="l"
-          stretched
-          onClick={() => window.open(tonkeeperUrl, '_blank')}
-        >
-          Open in Tonkeeper
-        </Button>
-        <div style={{ padding: '8px 0' }}>
-          <Button
-            size="l"
-            stretched
-            mode="outline"
-            onClick={() => window.open(tonSpaceUrl, '_blank')}
-          >
-            Open in TON Space
-          </Button>
-        </div>
       </Section>
 
       {escrow.explorerUrl && (
