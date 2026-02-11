@@ -139,6 +139,18 @@ async function main() {
     app.log.info(`Bot webhook set to ${webhookUrl}`);
   }
 
+  // Register bot commands in Telegram menu
+  await bot.api.setMyCommands([
+    { command: 'start', description: 'Open the marketplace' },
+    { command: 'mydeals', description: 'View your active deals' },
+    { command: 'addchannel', description: 'Add your channel to marketplace' },
+    { command: 'mycampaigns', description: 'View your campaigns' },
+    { command: 'submitbrief', description: 'Send ad brief/materials (advertiser)' },
+    { command: 'submitcreative', description: 'Submit ad creative (channel owner)' },
+    { command: 'schedulepost', description: 'Schedule or publish approved post' },
+    { command: 'help', description: 'Show help message' },
+  ]);
+
   // ── Start Server ───────────────────────────────────────
 
   try {
