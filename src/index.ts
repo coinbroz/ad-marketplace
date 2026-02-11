@@ -30,6 +30,15 @@ async function main() {
     },
   });
 
+  // ── Global BigInt serializer ──────────────────────────
+  // Prisma returns BigInt for telegramId fields. JSON.stringify
+  // fails on BigInt, so we override the serializer globally.
+  app.setReplySerializer((payload) => {
+    return JSON.stringify(payload, (_key, value) =>
+      typeof value === 'bigint' ? value.toString() : value,
+    );
+  });
+
   // ── Plugins ────────────────────────────────────────────
 
   await app.register(cors, {
