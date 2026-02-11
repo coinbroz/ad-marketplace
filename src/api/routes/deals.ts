@@ -224,13 +224,13 @@ export async function dealRoutes(app: FastifyInstance) {
     const dealId = parseInt(id, 10);
     const deal = await approveCreative(dealId, request.userId);
 
-    // Notify channel owner
+    // Notify channel owner with clear next step
     await notifyUser(
       deal.channelOwner.telegramId,
       `✅ <b>Creative approved!</b>\n\n` +
       `Deal #${dealId}\n` +
       `Channel: ${deal.channel.title}\n\n` +
-      `You can now schedule the post or publish immediately.`,
+      `Send /schedulepost to the bot to publish the post in the channel.`,
     );
 
     return deal;
@@ -243,14 +243,15 @@ export async function dealRoutes(app: FastifyInstance) {
     const dealId = parseInt(id, 10);
     const deal = await requestCreativeEdit(dealId, request.userId, body.comment);
 
-    // Notify channel owner
+    // Notify channel owner with clear next step
     await notifyUser(
       deal.channelOwner.telegramId,
       `✏️ <b>Edit requested</b>\n\n` +
       `Deal #${dealId}\n` +
       `Channel: ${deal.channel.title}\n\n` +
-      `Comment: ${body.comment}\n\n` +
-      `Please update the creative and resubmit.`,
+      `<b>Advertiser's comment:</b>\n${body.comment}\n\n` +
+      `Please update the creative based on this feedback.\n` +
+      `Send /submitcreative to the bot to resubmit.`,
     );
 
     return deal;
