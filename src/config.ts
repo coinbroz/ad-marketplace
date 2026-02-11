@@ -65,8 +65,8 @@ export const DEAL_TIMEOUTS: Record<string, number> = {
   SCHEDULED: 24,
 };
 
-// Post verification period (hours)
-export const POST_VERIFICATION_HOURS = 24;
+// Post verification period (hours) — 10 min for testing, change to 24 for production
+export const POST_VERIFICATION_HOURS = 10 / 60;
 
 // Worker intervals (milliseconds)
 export const PAYMENT_MONITOR_INTERVAL = 30_000;     // 30 seconds
