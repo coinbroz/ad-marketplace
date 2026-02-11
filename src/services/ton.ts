@@ -1,3 +1,4 @@
+import { Address } from '@ton/ton';
 import { prisma } from '../lib/prisma.js';
 import {
   getWalletBalance,
@@ -272,12 +273,18 @@ export async function getEscrowInfo(dealId: number) {
     ? 'https://tonviewer.com'
     : 'https://testnet.tonviewer.com';
 
+  // Convert stored address to correct network format for display
+  const isTestnet = config.TON_NETWORK === 'testnet';
+  const displayAddress = deal.escrowAddress
+    ? Address.parse(deal.escrowAddress).toString({ bounceable: false, testOnly: isTestnet })
+    : null;
+
   return {
-    address: deal.escrowAddress,
+    address: displayAddress,
     requiredAmount: deal.priceInTon,
     currentBalance: balance,
     status: deal.status,
-    explorerUrl: deal.escrowAddress ? `${explorerBase}/${deal.escrowAddress}` : null,
+    explorerUrl: displayAddress ? `${explorerBase}/${displayAddress}` : null,
     paymentTx: deal.paidTxHash ? `${explorerBase}/transaction/${deal.paidTxHash}` : null,
     payoutTx: deal.payoutTxHash ? `${explorerBase}/transaction/${deal.payoutTxHash}` : null,
     refundTx: deal.refundTxHash ? `${explorerBase}/transaction/${deal.refundTxHash}` : null,

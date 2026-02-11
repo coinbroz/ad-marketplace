@@ -70,7 +70,8 @@ export async function generateEscrowWallet(): Promise<EscrowWalletData> {
     publicKey: keyPair.publicKey,
   });
 
-  const address = wallet.address.toString({ bounceable: false });
+  const isTestnet = config.TON_NETWORK === 'testnet';
+  const address = wallet.address.toString({ bounceable: false, testOnly: isTestnet });
 
   // Encrypt the secret key (64 bytes: seed + public key)
   const encrypted = encryptSecretKey(Buffer.from(keyPair.secretKey));
