@@ -154,6 +154,19 @@ export function createCampaign(data: {
   });
 }
 
+export function updateCampaign(id: number, data: {
+  title?: string;
+  description?: string;
+  budgetPerPost?: number;
+  targetLanguage?: string;
+  minSubscribers?: number;
+}) {
+  return api<Campaign>(`/api/campaigns/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 export function applyCampaign(campaignId: number, channelId: number, message?: string) {
   return api<Deal>(`/api/campaigns/${campaignId}/apply`, {
     method: 'POST',

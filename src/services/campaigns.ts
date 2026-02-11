@@ -135,6 +135,9 @@ export async function getCampaignById(id: number) {
       advertiser: {
         select: { id: true, username: true, firstName: true },
       },
+      _count: {
+        select: { deals: true },
+      },
       deals: {
         select: {
           id: true,
