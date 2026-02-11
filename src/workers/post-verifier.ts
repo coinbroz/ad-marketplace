@@ -110,21 +110,23 @@ postVerifierWorker.on('failed', (job, err) => {
 });
 
 /**
- * Check if a post has been deleted by trying to forward it.
- * If forwarding fails with "message not found", the post is deleted.
+ * Check if a post has been deleted by trying to copy it.
+ * copyMessage is better than forwardMessage because it doesn't require
+ * the bot to have a chat with itself — we copy to the channel admin (owner).
+ * If copying fails with "message not found", the post is deleted.
  */
 async function checkPostDeleted(
   channelTelegramId: number,
   messageId: number,
 ): Promise<boolean> {
   try {
-    // Try to forward the message to the bot itself (bot's private chat)
-    const me = await bot.api.getMe();
-    const forwarded = await bot.api.forwardMessage(me.id, channelTelegramId, messageId);
+    // Use getChat to verify channel is accessible, then try copyMessage
+    // to the same channel (we'll delete the copy immediately)
+    const copied = await bot.api.copyMessage(channelTelegramId, channelTelegramId, messageId);
 
-    // Delete the forwarded message to clean up
+    // Delete the copy to clean up
     try {
-      await bot.api.deleteMessage(me.id, forwarded.message_id);
+      await bot.api.deleteMessage(channelTelegramId, copied.message_id);
     } catch {
       // Ignore cleanup errors
     }
@@ -132,10 +134,14 @@ async function checkPostDeleted(
     return false; // Post exists
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : '';
-    if (message.includes('message to forward not found') || message.includes('MESSAGE_ID_INVALID')) {
+    if (
+      message.includes('message to copy not found') ||
+      message.includes('message to forward not found') ||
+      message.includes('MESSAGE_ID_INVALID')
+    ) {
       return true; // Post was deleted
     }
-    // Other errors (network, rate limit) — assume post exists
+    // Other errors (network, rate limit) — assume post exists, don't block
     console.error(`Post check error for channel ${channelTelegramId}, msg ${messageId}:`, err);
     return false;
   }
