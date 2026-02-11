@@ -91,8 +91,21 @@ export function DealPage({ user }: Props) {
       {/* Escrow Info */}
       {escrow && (
         <Section header="Escrow">
-          <Cell subtitle="Address" style={{ wordBreak: 'break-all' }}>
-            {escrow.address}
+          <Cell
+            subtitle="Tap to copy"
+            onClick={() => {
+              if (escrow.address) {
+                navigator.clipboard.writeText(escrow.address);
+                window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+                window.Telegram?.WebApp?.showAlert?.('Address copied!');
+              }
+            }}
+          >
+            <span style={{ fontFamily: 'monospace', fontSize: 13 }}>
+              {escrow.address && escrow.address.length > 20
+                ? `${escrow.address.slice(0, 10)}...${escrow.address.slice(-10)}`
+                : escrow.address}
+            </span>
           </Cell>
           <Cell subtitle="Balance">{escrow.currentBalance} / {escrow.requiredAmount} TON</Cell>
           {escrow.explorerUrl && (

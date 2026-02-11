@@ -68,10 +68,12 @@ export function PaymentPage() {
       <Section header="Escrow Address">
         <Cell
           onClick={copyAddress}
-          subtitle="Tap to copy"
+          subtitle="Tap to copy full address"
         >
-          <span style={{ fontSize: 12, wordBreak: 'break-all', fontFamily: 'monospace' }}>
-            {escrow.address}
+          <span style={{ fontSize: 13, fontFamily: 'monospace' }}>
+            {escrow.address && escrow.address.length > 20
+              ? `${escrow.address.slice(0, 10)}...${escrow.address.slice(-10)}`
+              : escrow.address}
           </span>
         </Cell>
         <Cell subtitle="Amount">{deal.priceInTon} TON</Cell>
