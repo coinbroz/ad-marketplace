@@ -270,8 +270,8 @@ export async function getEscrowInfo(dealId: number) {
   }
 
   const explorerBase = config.TON_NETWORK === 'mainnet'
-    ? 'https://tonviewer.com'
-    : 'https://testnet.tonviewer.com';
+    ? 'https://tonscan.org'
+    : 'https://testnet.tonscan.org';
 
   // Convert stored address to correct network format for display
   const isTestnet = config.TON_NETWORK === 'testnet';
