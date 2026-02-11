@@ -230,10 +230,10 @@
 
 ---
 
-## Day 5 — Mini App Frontend (Feb 14) — 90% DONE
+## Day 5 — Mini App Frontend (Feb 10-11) — 95% DONE
 
 ### Goal: React UI в Telegram Mini App
-### NOTE: All pages implemented. Needs E2E testing with deal flow.
+### NOTE: All pages implemented and tested. LanguageInput, format selection, campaign edit added. Tab bar redesigned.
 
 **Dependencies:**
 ```
@@ -290,7 +290,7 @@ qrcode.react
 
 8. Сборка: `vite build` → `web/dist/` → Fastify static
 
-**Результат дня:** Рабочий Mini App с фильтрами (bottom sheet overlay), channel stats, deal pages. Deployed to Railway.
+**Результат дня:** Рабочий Mini App с фильтрами (bottom sheet overlay), channel stats, deal pages, LanguageInput autocomplete (26 языков + fuzzy), format selection для Propose Deal, Campaign edit mode, custom tab bar с safe-area-inset-bottom. Deployed to Railway. Tested with two Telegram accounts — deal creation + notifications work.
 
 ---
 
@@ -417,18 +417,27 @@ Before starting Day 1:
 
 ---
 
-## Status Summary (Updated Feb 10, 2026)
+## Status Summary (Updated Feb 11, 2026)
 
 ### COMPLETED:
 - Days 1-2: Backend, DB, Auth, Bot, Channels, Campaigns, Stats, Filters, Admin re-check
 - Day 3 (partial): Escrow wallet generation, encryption, payment monitoring, state machine
 - Day 4: Creative workflow, bot conversations, auto-posting, post verification, scheduled posting
-- Day 5: All Mini App pages, API client, Telegram UI components
+- Day 5 (95%): All Mini App pages + LanguageInput + format selection + campaign edit + tab bar redesign
 - Deploy: Railway with PostgreSQL + Redis, auto-deploy from GitHub
+- Testing: Deal creation tested with two Telegram accounts — works + bot notifications
 
 ### REMAINING (3 items):
 1. **TON actual transactions** — `releaseFunds()` and `refundFunds()` in `src/services/ton.ts` (4-6h)
-2. **E2E testing** — Full deal flow with two Telegram accounts (3h)
-3. **README polish** — Screenshots, final description, submission (2h)
+2. **Payment page E2E** — Test with real TON testnet payments (2h)
+3. **README polish** — Screenshots, architecture diagram, submission (2h)
+
+### Session 2 additions (Feb 11):
+- Campaign page: all fields visible, edit mode for owner, status colors, application count
+- LanguageInput component: 26 languages, fuzzy aliases (рус→Russian, eng→English, etc.)
+- Global BigInt fix: `app.setReplySerializer()` in `src/index.ts`
+- Tab bar: custom with icons (🏪🤝👤), safe-area-inset-bottom for iPhone
+- Format selection: Post/Forward/Story selectable on Channel page
+- Error hints: "Check My Deals tab" on duplicate deal error
 
 ### See `docs/PROGRESS_LOG.md` for detailed status of every component.

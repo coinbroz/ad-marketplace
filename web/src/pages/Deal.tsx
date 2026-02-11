@@ -220,19 +220,6 @@ export function DealPage({ user }: Props) {
         </div>
       )}
 
-      {deal.status === 'FUNDED' && isOwner && (
-        <div style={{
-          padding: '12px 16px',
-          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
-          borderRadius: 8,
-          margin: '0 16px 12px',
-          fontSize: 14,
-          color: 'var(--tg-theme-hint-color, #999)',
-        }}>
-          Payment received! Use the bot to submit your creative: send /submitcreative to @channelescrow_bot
-        </div>
-      )}
-
       {deal.status === 'FUNDED' && isAdvertiser && (
         <div style={{
           padding: '12px 16px',
@@ -242,7 +229,20 @@ export function DealPage({ user }: Props) {
           fontSize: 14,
           color: 'var(--tg-theme-hint-color, #999)',
         }}>
-          Payment confirmed! Waiting for the channel owner to submit the creative draft.
+          Payment confirmed! Send your ad brief and materials to the channel owner: use /submitbrief in the bot.
+        </div>
+      )}
+
+      {deal.status === 'FUNDED' && isOwner && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Payment received! Wait for the advertiser's brief, then create the ad post: send /submitcreative to the bot.
         </div>
       )}
 

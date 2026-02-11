@@ -53,12 +53,13 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
       },
     });
 
-    // Notify both parties
-    const paymentMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(balance)} TON\nTX: <code>${txHash || 'confirming...'}</code>`;
+    // Notify both parties with next-step hints
+    const advertiserMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(balance)} TON\nTX: <code>${txHash || 'confirming...'}</code>\n\n📋 Now send your ad brief and materials: use /submitbrief`;
+    const ownerMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(balance)} TON\nTX: <code>${txHash || 'confirming...'}</code>\n\n⏳ Waiting for the advertiser to send their ad brief.`;
 
     await Promise.all([
-      notifyUser(deal.advertiser.telegramId, paymentMsg),
-      notifyUser(deal.channelOwner.telegramId, paymentMsg),
+      notifyUser(deal.advertiser.telegramId, advertiserMsg),
+      notifyUser(deal.channelOwner.telegramId, ownerMsg),
     ]);
 
     return true;

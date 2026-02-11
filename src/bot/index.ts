@@ -4,6 +4,7 @@ import type { Context, SessionFlavor } from 'grammy';
 import type { ConversationFlavor } from '@grammyjs/conversations';
 import { config } from '../config.js';
 import { prisma } from '../lib/prisma.js';
+import { submitBriefConversation } from './conversations/submitBrief.js';
 import { submitCreativeConversation } from './conversations/submitCreative.js';
 import { schedulePostConversation } from './conversations/schedulePost.js';
 import crypto from 'node:crypto';
@@ -25,6 +26,7 @@ bot.use(session({ initial: (): SessionData => ({}) }));
 
 // Conversations plugin
 bot.use(conversations());
+bot.use(createConversation(submitBriefConversation, 'submitBrief'));
 bot.use(createConversation(submitCreativeConversation, 'submitCreative'));
 bot.use(createConversation(schedulePostConversation, 'schedulePost'));
 
@@ -68,7 +70,8 @@ bot.command('help', async (ctx) => {
     '/mydeals — View your active deals\n' +
     '/addchannel — Add your channel to the marketplace\n' +
     '/mycampaigns — View your campaigns\n' +
-    '/submitcreative — Submit ad creative for a deal\n' +
+    '/submitbrief — Send your ad brief/materials (advertiser)\n' +
+    '/submitcreative — Submit ad creative for a deal (channel owner)\n' +
     '/schedulepost — Schedule or publish an approved post\n\n' +
     'Use the Mini App for full marketplace experience!',
   );
@@ -187,6 +190,10 @@ bot.command('addchannel', async (ctx) => {
 });
 
 // ── Conversation commands ──────────────────────────────────
+
+bot.command('submitbrief', async (ctx) => {
+  await ctx.conversation.enter('submitBrief');
+});
 
 bot.command('submitcreative', async (ctx) => {
   await ctx.conversation.enter('submitCreative');

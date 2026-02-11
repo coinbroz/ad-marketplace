@@ -34,7 +34,7 @@ export async function submitCreativeConversation(
       },
       include: {
         channel: { select: { title: true, username: true } },
-        advertiser: { select: { firstName: true, username: true } },
+        advertiser: { select: { firstName: true, username: true, telegramId: true } },
       },
       orderBy: { updatedAt: 'desc' },
     }),
@@ -83,14 +83,39 @@ export async function submitCreativeConversation(
     return;
   }
 
-  // Ask for creative text
+  // Show brief and media from advertiser
+  let briefInfo = '';
+  if (selectedDeal.brief) {
+    briefInfo += `📋 <b>Advertiser's brief:</b>\n${selectedDeal.brief}\n\n`;
+  }
+  if (selectedDeal.editComment) {
+    briefInfo += `✏️ <b>Edit comment:</b> ${selectedDeal.editComment}\n\n`;
+  }
+
   await ctx.reply(
     `📝 <b>Deal #${dealId} — ${selectedDeal.channel.title}</b>\n\n` +
-    (selectedDeal.brief ? `Brief: ${selectedDeal.brief}\n\n` : '') +
-    (selectedDeal.editComment ? `✏️ Edit comment: ${selectedDeal.editComment}\n\n` : '') +
-    'Send the ad post text below.\nYou can also attach a photo or video.',
+    briefInfo +
+    'Create the ad post based on the brief above.\nSend the post text below. You can also attach a photo or video.',
     { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } },
   );
+
+  // If advertiser attached media, forward it to the channel owner for reference
+  if (selectedDeal.briefMediaFileId && selectedDeal.briefMediaType) {
+    try {
+      const chatId = ctx.chat?.id;
+      if (chatId) {
+        if (selectedDeal.briefMediaType === 'photo') {
+          await ctx.api.sendPhoto(chatId, selectedDeal.briefMediaFileId, { caption: '📎 Advertiser\'s reference material' });
+        } else if (selectedDeal.briefMediaType === 'video') {
+          await ctx.api.sendVideo(chatId, selectedDeal.briefMediaFileId, { caption: '📎 Advertiser\'s reference material' });
+        } else if (selectedDeal.briefMediaType === 'document') {
+          await ctx.api.sendDocument(chatId, selectedDeal.briefMediaFileId, { caption: '📎 Advertiser\'s reference material' });
+        }
+      }
+    } catch {
+      // Media might have expired, continue without it
+    }
+  }
 
   // Wait for creative content (text, photo, video, or document)
   const creativeResponse = await conversation.waitFor([

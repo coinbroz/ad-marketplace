@@ -166,8 +166,12 @@ model Deal {
   paidAt     DateTime?
   paidTxHash String?
 
-  // Creative
+  // Advertiser brief (detailed materials submitted after payment)
   brief               String?
+  briefMediaType      String?  // "photo", "video", "document", null
+  briefMediaFileId    String?  // Telegram file_id
+
+  // Creative (channel owner's post draft)
   creativeText         String?
   creativeMediaType    String?  // "photo", "video", "document", null
   creativeMediaFileId  String?  // Telegram file_id
