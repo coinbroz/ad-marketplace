@@ -83,8 +83,8 @@ export async function submitCreativeConversation(
     return;
   }
 
-  // Show brief and media from advertiser
-  let briefInfo = '';
+  // Show brief from advertiser
+  let briefInfo = `📝 <b>Deal #${dealId} — ${selectedDeal.channel.title}</b>\n\n`;
   if (selectedDeal.brief) {
     briefInfo += `📋 <b>Advertiser's brief:</b>\n${selectedDeal.brief}\n\n`;
   }
@@ -92,12 +92,7 @@ export async function submitCreativeConversation(
     briefInfo += `✏️ <b>Edit comment:</b> ${selectedDeal.editComment}\n\n`;
   }
 
-  await ctx.reply(
-    `📝 <b>Deal #${dealId} — ${selectedDeal.channel.title}</b>\n\n` +
-    briefInfo +
-    'Create the ad post based on the brief above.\nSend the post text below. You can also attach a photo or video.',
-    { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } },
-  );
+  await ctx.reply(briefInfo, { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } });
 
   // If advertiser attached media, forward it to the channel owner for reference
   if (selectedDeal.briefMediaFileId && selectedDeal.briefMediaType) {
@@ -116,6 +111,15 @@ export async function submitCreativeConversation(
       // Media might have expired, continue without it
     }
   }
+
+  // Clear instruction AFTER all materials are shown
+  await ctx.reply(
+    '✏️ <b>Now create the ad post.</b>\n\n' +
+    'Send a message with the post text exactly as it should appear in the channel. ' +
+    'You can attach a photo or video to your message.\n\n' +
+    'This will be sent to the advertiser for approval.',
+    { parse_mode: 'HTML' },
+  );
 
   // Wait for creative content (text, photo, video, or document)
   const creativeResponse = await conversation.waitFor([
