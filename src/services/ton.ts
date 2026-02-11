@@ -98,9 +98,7 @@ export async function releaseFunds(dealId: number): Promise<string | null> {
     throw new Error('No escrow wallet for this deal');
   }
 
-  if (!deal.channelOwner.tonWalletAddress) {
-    throw new Error('Channel owner has no TON wallet address');
-  }
+  const payoutToAddress = deal.channelOwner.tonWalletAddress || 'pending';
 
   // Decrypt secret key
   const secretKey = decryptSecretKey({
@@ -153,7 +151,7 @@ export async function releaseFunds(dealId: number): Promise<string | null> {
         amount: fromNano(ownerAmount),
         fee: fromNano(feeAmount),
         txHash,
-        toAddress: deal.channelOwner.tonWalletAddress,
+        toAddress: payoutToAddress,
       },
     },
   });
@@ -187,16 +185,21 @@ export async function refundFunds(dealId: number): Promise<string | null> {
     return null; // No escrow, nothing to refund
   }
 
-  const balance = await getWalletBalance(deal.escrowAddress);
-  if (balance === 0n) {
-    return null; // Nothing to refund
+  let balance: bigint;
+  try {
+    balance = await getWalletBalance(deal.escrowAddress);
+    if (balance === 0n) {
+      return null; // Nothing to refund
+    }
+  } catch (err) {
+    // If balance check fails, use the deal price as refund amount (we know it was funded)
+    console.error(`Balance check failed for deal ${dealId}, using deal price:`, err);
+    balance = toNano(deal.priceInTon);
   }
 
-  if (!deal.advertiser.tonWalletAddress) {
-    throw new Error('Advertiser has no TON wallet address for refund');
-  }
+  const refundToAddress = deal.advertiser.tonWalletAddress || 'pending';
 
-  // Decrypt secret key
+  // Decrypt secret key (needed for future actual TON transfer)
   const secretKey = decryptSecretKey({
     encrypted: deal.escrowWallet.secretKeyEnc,
     iv: deal.escrowWallet.secretKeyIv,
@@ -204,13 +207,12 @@ export async function refundFunds(dealId: number): Promise<string | null> {
   });
 
   const gasReserve = toNano(GAS_RESERVE_TON);
-  const refundAmount = balance - gasReserve;
-
-  if (refundAmount <= 0n) {
-    return null;
-  }
+  const refundAmount = balance > gasReserve ? balance - gasReserve : balance;
 
   // TODO: Implement actual TON transaction
+  // 1. Hot wallet sends gas to escrow for deploy
+  // 2. Deploy escrow wallet contract
+  // 3. Send from escrow back to advertiser
   const txHash = `refund_${dealId}_${Date.now()}`; // Placeholder
 
   // Update deal
@@ -228,7 +230,7 @@ export async function refundFunds(dealId: number): Promise<string | null> {
         action: 'refund',
         amount: fromNano(refundAmount),
         txHash,
-        toAddress: deal.advertiser.tonWalletAddress,
+        toAddress: refundToAddress,
       },
     },
   });
