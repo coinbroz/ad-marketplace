@@ -241,6 +241,13 @@ export function scheduleDealPost(id: number, scheduledAt: string) {
   });
 }
 
+export function setRefundAddress(id: number, address: string, memo?: string) {
+  return api<Deal>(`/api/deals/${id}/refund-address`, {
+    method: 'PUT',
+    body: JSON.stringify({ address, memo }),
+  });
+}
+
 export function getEscrowInfo(id: number) {
   return api<EscrowInfo>(`/api/deals/${id}/escrow`);
 }

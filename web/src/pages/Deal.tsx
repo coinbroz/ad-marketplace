@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
+import { useState } from 'react';
+import { Input } from '@telegram-apps/telegram-ui';
 import {
   getDeal,
   getEscrowInfo,
@@ -9,6 +11,7 @@ import {
   cancelDeal,
   approveCreative,
   requestEdit,
+  setRefundAddress,
   getDealEvents,
 } from '../api/client';
 import type { User, DealEvent } from '../types';
@@ -402,6 +405,9 @@ export function DealPage({ user }: Props) {
         </div>
       )}
 
+      {/* Refund address — shown to advertiser after cancellation */}
+      {deal.status === 'REFUNDED' && isAdvertiser && <RefundAddressSection dealId={deal.id} deal={deal} queryClient={queryClient} />}
+
       {/* Timeline */}
       {events && events.length > 0 && (
         <Section header="Timeline">
@@ -419,6 +425,79 @@ export function DealPage({ user }: Props) {
   );
 }
 
+function RefundAddressSection({ dealId, deal, queryClient }: { dealId: number; deal: { refundAddress: string | null; refundMemo: string | null; priceInTon: number }; queryClient: ReturnType<typeof useQueryClient> }) {
+  const [address, setAddress] = useState(deal.refundAddress || '');
+  const [memo, setMemo] = useState(deal.refundMemo || '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(!!deal.refundAddress);
+
+  const handleSave = async () => {
+    if (!address.trim()) {
+      window.Telegram?.WebApp?.showAlert?.('Please enter your wallet address');
+      return;
+    }
+    setSaving(true);
+    try {
+      await setRefundAddress(dealId, address.trim(), memo.trim() || undefined);
+      queryClient.invalidateQueries({ queryKey: ['deal', dealId] });
+      setSaved(true);
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    } catch (err) {
+      window.Telegram?.WebApp?.showAlert?.(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (saved && deal.refundAddress) {
+    return (
+      <Section header="Refund">
+        <Cell subtitle="Refund address">{deal.refundAddress}</Cell>
+        {deal.refundMemo && <Cell subtitle="Memo">{deal.refundMemo}</Cell>}
+        <Cell subtitle="Amount">{deal.priceInTon} TON</Cell>
+        <div style={{
+          padding: '8px 16px',
+          fontSize: 13,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Refund will be processed to this address.
+        </div>
+      </Section>
+    );
+  }
+
+  return (
+    <Section header="Refund — Enter Your Wallet">
+      <div style={{
+        padding: '12px 16px',
+        fontSize: 13,
+        color: 'var(--tg-theme-hint-color, #999)',
+        lineHeight: 1.4,
+      }}>
+        The deal has been cancelled. Please enter your TON wallet address for the refund of {deal.priceInTon} TON.
+        {'\n\n'}If you sent from an exchange, enter your exchange deposit address and memo. If you sent from a personal wallet (Tonkeeper, TonHub, etc.), just enter the wallet address.
+      </div>
+      <Input
+        header="TON Wallet Address"
+        placeholder="Your TON wallet address"
+        value={address}
+        onChange={(e) => setAddress(e.target.value)}
+      />
+      <Input
+        header="Memo (optional)"
+        placeholder="Memo for exchange deposits"
+        value={memo}
+        onChange={(e) => setMemo(e.target.value)}
+      />
+      <div style={{ padding: '8px 16px' }}>
+        <Button size="l" stretched onClick={handleSave} loading={saving}>
+          Save Refund Address
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
 function formatEventType(type: string, data: Record<string, unknown> | null): string {
   switch (type) {
     case 'status_change': {
@@ -433,6 +512,8 @@ function formatEventType(type: string, data: Record<string, unknown> | null): st
       return 'Post was edited';
     case 'post_delete':
       return 'Post was deleted!';
+    case 'refund_address':
+      return `Refund address set: ${(data?.address as string)?.slice(0, 12)}...`;
     default:
       return type;
   }

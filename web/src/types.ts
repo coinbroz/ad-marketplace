@@ -75,6 +75,8 @@ export interface Deal {
   scheduledAt: string | null;
   postedAt: string | null;
   postMessageId: number | null;
+  refundAddress: string | null;
+  refundMemo: string | null;
   expiresAt: string | null;
   createdAt: string;
   updatedAt: string;

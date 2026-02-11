@@ -159,6 +159,12 @@ export function PaymentPage() {
       )}
 
       <Section>
+        <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--tg-theme-hint-color)', lineHeight: 1.5 }}>
+          <b>Refund policy:</b> If the deal is cancelled, you'll be asked for your refund wallet address. If paying from an exchange, make sure you can receive TON back to a wallet you control.
+        </div>
+      </Section>
+
+      <Section>
         <div style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, color: 'var(--tg-theme-hint-color)' }}>
           Waiting for payment confirmation...
           <br />

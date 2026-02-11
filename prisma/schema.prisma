@@ -192,6 +192,8 @@ model Deal {
   paidOutAt    DateTime?
   refundTxHash String?
   refundedAt   DateTime?
+  refundAddress String?  // Advertiser's wallet for refund (entered after cancel)
+  refundMemo    String?  // Memo/comment for exchange refunds
 
   // Timing
   createdAt DateTime  @default(now())

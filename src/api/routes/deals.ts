@@ -216,6 +216,8 @@ export async function dealRoutes(app: FastifyInstance) {
       : deal.channelOwner.firstName;
 
     const isRefunded = deal.status === 'REFUNDED';
+
+    // Notify the other party
     await notifyUser(
       otherTelegramId,
       `🚫 <b>Deal cancelled</b>\n\n` +
@@ -223,12 +225,75 @@ export async function dealRoutes(app: FastifyInstance) {
       `Channel: ${deal.channel.title}\n` +
       `Price: ${deal.priceInTon} TON\n` +
       `Cancelled by: ${cancellerName}\n\n` +
-      (isRefunded
-        ? `The deal has been cancelled. Refund has been processed to the advertiser's wallet.`
-        : `The deal has been cancelled.`),
+      `The deal has been cancelled.`,
     );
 
+    // Notify advertiser about refund address if payment was involved
+    if (isRefunded) {
+      const advertiserTgId = deal.advertiser.telegramId;
+      await notifyUser(
+        advertiserTgId,
+        `🔄 <b>Refund pending</b>\n\n` +
+        `Deal #${dealId}\n` +
+        `Amount: ${deal.priceInTon} TON\n\n` +
+        `Please open the Mini App → My Deals → Deal #${dealId} and enter your TON wallet address for the refund.`,
+      );
+    }
+
     return deal;
+  });
+
+  // Set refund address (advertiser provides wallet for refund after cancellation)
+  app.put('/api/deals/:id/refund-address', { preHandler: [requireAuth] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const dealId = parseInt(id, 10);
+    const body = request.body as { address: string; memo?: string };
+
+    if (!body.address?.trim()) {
+      return reply.status(400).send({ error: 'Wallet address is required' });
+    }
+
+    const deal = await prisma.deal.findUniqueOrThrow({
+      where: { id: dealId },
+      include: { channel: { select: { title: true } } },
+    });
+
+    // Only advertiser can set refund address
+    if (request.userId !== deal.advertiserId) {
+      return reply.status(403).send({ error: 'Only the advertiser can set the refund address' });
+    }
+
+    // Only for refunded/cancelled deals that had payment
+    if (!['REFUNDED', 'CANCELLED'].includes(deal.status)) {
+      return reply.status(400).send({ error: 'Refund address can only be set for cancelled/refunded deals' });
+    }
+
+    const updated = await prisma.deal.update({
+      where: { id: dealId },
+      data: {
+        refundAddress: body.address.trim(),
+        refundMemo: body.memo?.trim() || null,
+      },
+      include: {
+        channel: true,
+        advertiser: true,
+        channelOwner: true,
+      },
+    });
+
+    // Log event
+    await prisma.dealEvent.create({
+      data: {
+        dealId,
+        type: 'refund_address',
+        data: {
+          address: body.address.trim(),
+          memo: body.memo?.trim() || null,
+        },
+      },
+    });
+
+    return updated;
   });
 
   // Submit creative (with admin re-check)
