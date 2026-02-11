@@ -200,18 +200,48 @@ export async function submitCreativeConversation(
       { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } },
     );
 
-    // Notify advertiser
-    await conversation.external(() =>
-      notifyUser(
+    // Notify advertiser — send creative preview with media
+    const advertiserTgId = Number(deal.advertiser.telegramId);
+    await conversation.external(async () => {
+      const { bot: botInstance } = await import('../index.js');
+
+      // Send the actual media with creative text as caption (if media exists)
+      if (mediaFileId && mediaType) {
+        const caption = (creativeText || '') +
+          `\n\n—\n📝 <b>Creative for Deal #${dealId}</b>\nChannel: ${deal.channel.title}`;
+        if (mediaType === 'photo') {
+          await botInstance.api.sendPhoto(advertiserTgId, mediaFileId, { caption, parse_mode: 'HTML' });
+        } else if (mediaType === 'video') {
+          await botInstance.api.sendVideo(advertiserTgId, mediaFileId, { caption, parse_mode: 'HTML' });
+        } else if (mediaType === 'document') {
+          await botInstance.api.sendDocument(advertiserTgId, mediaFileId, { caption, parse_mode: 'HTML' });
+        }
+      } else {
+        // Text-only creative
+        await notifyUser(
+          deal.advertiser.telegramId,
+          `📝 <b>Creative for Deal #${dealId}</b>\n` +
+          `Channel: ${deal.channel.title}\n\n` +
+          `<b>Post preview:</b>\n${creativeText}`,
+        );
+      }
+
+      // Follow-up with clear action instructions
+      await notifyUser(
         deal.advertiser.telegramId,
-        `📝 <b>Creative submitted for review!</b>\n\n` +
-        `Deal #${dealId}\n` +
-        `Channel: ${deal.channel.title}\n\n` +
-        `<b>Preview:</b>\n${creativeText}\n` +
-        (mediaType ? `📎 ${mediaType} attached\n` : '') +
-        `\nPlease review and approve or request edits.`,
-      ),
-    );
+        `👆 This is how the ad post will look in the channel.\n\n` +
+        `Open the Mini App → My Deals → Deal #${dealId} to:\n` +
+        `✅ <b>Approve Creative</b> — post goes to the channel\n` +
+        `✏️ <b>Request Edits</b> — send feedback to the channel owner`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '📋 Open Deal', web_app: { url: `${(await import('../../config.js')).config.WEBAPP_URL}` } }],
+            ],
+          },
+        },
+      );
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Submission failed';
     await ctx.reply(`❌ Error: ${message}`, { reply_markup: { remove_keyboard: true } });
