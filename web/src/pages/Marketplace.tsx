@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Section, Cell, Badge, Input, SegmentedControl, Button } from '@telegram-apps/telegram-ui';
-import { getChannels, getCampaigns } from '../api/client';
+import { getChannels, getCampaigns, getMe } from '../api/client';
 import { LanguageInput } from '../components/LanguageInput';
 import type { User, Channel, Campaign } from '../types';
 
@@ -80,6 +80,28 @@ export function MarketplacePage({ user }: Props) {
     queryKey: ['campaigns', search, minBudget, campLanguage],
     queryFn: () => getCampaigns(campaignParams),
     enabled: tab === 'campaigns',
+  });
+
+  const meQuery = useQuery({
+    queryKey: ['me'],
+    queryFn: getMe,
+  });
+
+  // Filter campaigns: only show ones where at least one user's channel qualifies
+  const myChannels = meQuery.data?.channels?.filter((c) => c.botIsAdmin && c.isActive) || [];
+  const filteredCampaigns = campaignsQuery.data?.campaigns?.filter((campaign: Campaign) => {
+    // No requirements → show to everyone
+    if (!campaign.minSubscribers && !campaign.minAvgViews) return true;
+    // User has no channels → show all (they might be advertisers or plan to add a channel)
+    if (myChannels.length === 0) return true;
+    // User is the campaign owner → always show
+    if (campaign.advertiserId === user?.id) return true;
+    // At least one channel must qualify
+    return myChannels.some((ch) => {
+      if (campaign.minSubscribers && ch.subscriberCount < campaign.minSubscribers) return false;
+      if (campaign.minAvgViews && ch.avgViewCount < (campaign.minAvgViews ?? 0)) return false;
+      return true;
+    });
   });
 
   const clearFilters = () => {
@@ -274,8 +296,8 @@ export function MarketplacePage({ user }: Props) {
           </div>
           {campaignsQuery.isLoading && <Cell>Loading campaigns...</Cell>}
           {campaignsQuery.error && <Cell>Failed to load campaigns</Cell>}
-          {campaignsQuery.data?.campaigns?.length === 0 && <Cell>No campaigns found</Cell>}
-          {campaignsQuery.data?.campaigns?.map((campaign: Campaign) => (
+          {filteredCampaigns?.length === 0 && !campaignsQuery.isLoading && <Cell>No campaigns found</Cell>}
+          {filteredCampaigns?.map((campaign: Campaign) => (
             <Cell
               key={campaign.id}
               subtitle={
