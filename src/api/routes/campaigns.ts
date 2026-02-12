@@ -91,6 +91,18 @@ export async function campaignRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Bot must be an admin of the channel' });
     }
 
+    // Check campaign requirements
+    if (campaign.minSubscribers && channel.subscriberCount < campaign.minSubscribers) {
+      return reply.status(400).send({
+        error: `Channel needs at least ${campaign.minSubscribers.toLocaleString()} subscribers (yours: ${channel.subscriberCount.toLocaleString()})`,
+      });
+    }
+    if (campaign.minAvgViews && channel.avgViewCount < campaign.minAvgViews) {
+      return reply.status(400).send({
+        error: `Channel needs at least ${campaign.minAvgViews.toLocaleString()} avg views (yours: ${channel.avgViewCount.toLocaleString()})`,
+      });
+    }
+
     // Check for existing deal for this channel + campaign
     const existingDeal = await prisma.deal.findFirst({
       where: {

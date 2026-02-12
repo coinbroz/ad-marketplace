@@ -47,7 +47,13 @@ export function CampaignPage({ user }: Props) {
   if (error || !campaign) return <Placeholder description="Campaign not found" />;
 
   const isOwner = user?.id === campaign.advertiserId;
-  const myChannels = me?.channels?.filter((c) => c.botIsAdmin && c.isActive) || [];
+  const allMyChannels = me?.channels?.filter((c) => c.botIsAdmin && c.isActive) || [];
+  const myChannels = allMyChannels.filter((c) => {
+    if (campaign.minSubscribers && c.subscriberCount < campaign.minSubscribers) return false;
+    if (campaign.minAvgViews && c.avgViewCount < (campaign.minAvgViews ?? 0)) return false;
+    return true;
+  });
+  const hasChannelsButNoneQualify = allMyChannels.length > 0 && myChannels.length === 0;
 
   const startEditing = () => {
     setEditTitle(campaign.title);
@@ -259,9 +265,21 @@ export function CampaignPage({ user }: Props) {
         </Section>
       )}
 
-      {!isOwner && campaign.status === 'ACTIVE' && myChannels.length === 0 && (
+      {!isOwner && campaign.status === 'ACTIVE' && myChannels.length === 0 && !hasChannelsButNoneQualify && (
         <Section>
           <Placeholder description="Add a channel in Profile to apply for campaigns" />
+        </Section>
+      )}
+
+      {!isOwner && campaign.status === 'ACTIVE' && hasChannelsButNoneQualify && (
+        <Section>
+          <Placeholder
+            description={
+              `None of your channels meet the requirements` +
+              (campaign.minSubscribers ? ` (min ${campaign.minSubscribers.toLocaleString()} subscribers)` : '') +
+              (campaign.minAvgViews ? ` (min ${campaign.minAvgViews.toLocaleString()} avg views)` : '')
+            }
+          />
         </Section>
       )}
 
