@@ -111,6 +111,26 @@ export function PaymentPage() {
       </Section>
 
       <Section header="Pay with Wallet">
+        {wallet && (
+          <Cell
+            subtitle="Connected wallet"
+            after={
+              <Button
+                size="s"
+                mode="outline"
+                onClick={() => tonConnectUI.disconnect()}
+              >
+                Disconnect
+              </Button>
+            }
+          >
+            <span style={{ fontSize: 12, fontFamily: 'monospace' }}>
+              {wallet.account.address
+                ? `${wallet.account.address.slice(0, 6)}...${wallet.account.address.slice(-4)}`
+                : 'Connected'}
+            </span>
+          </Cell>
+        )}
         <div style={{ padding: '0 16px 8px' }}>
           <Button
             size="l"
@@ -121,13 +141,24 @@ export function PaymentPage() {
             {wallet ? `Pay ${deal.priceInTon} TON` : 'Connect Wallet & Pay'}
           </Button>
         </div>
+        {wallet && (
+          <div style={{ padding: '0 16px 8px' }}>
+            <Button
+              size="s"
+              mode="outline"
+              stretched
+              onClick={() => tonConnectUI.openModal()}
+            >
+              Switch Wallet
+            </Button>
+          </div>
+        )}
         <div style={{ padding: '0 16px 8px' }}>
           <Button
             size="l"
             stretched
             mode="outline"
             onClick={() => {
-              // Use Telegram openLink for better deeplink handling from WebView
               const tg = window.Telegram?.WebApp as Record<string, unknown> | undefined;
               if (typeof tg?.openLink === 'function') {
                 (tg.openLink as (url: string) => void)(tonkeeperUrl);
