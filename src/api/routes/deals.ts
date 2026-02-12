@@ -122,19 +122,26 @@ export async function dealRoutes(app: FastifyInstance) {
     // Auto-transition to AWAITING_PAYMENT
     const updatedDeal = await moveToPayment(dealId);
 
-    // Notify the other party
-    const otherPartyTelegramId = deal.initiatedBy === 'advertiser'
-      ? deal.advertiser.telegramId
-      : deal.channelOwner.telegramId;
-
+    // Notify ADVERTISER with escrow address (they always pay)
     await notifyUser(
-      otherPartyTelegramId,
+      deal.advertiser.telegramId,
       `✅ <b>Deal accepted!</b>\n\nDeal #${dealId}\n` +
       `Channel: ${deal.channel.title}\n` +
       `Price: ${deal.priceInTon} TON\n\n` +
       `Escrow address: <code>${updatedDeal.escrowAddress}</code>\n\n` +
       `Please send ${deal.priceInTon} TON to this address to proceed.`,
     );
+
+    // Notify CHANNEL OWNER that deal was accepted
+    if (deal.advertiser.telegramId !== deal.channelOwner.telegramId) {
+      await notifyUser(
+        deal.channelOwner.telegramId,
+        `✅ <b>Deal accepted!</b>\n\nDeal #${dealId}\n` +
+        `Channel: ${deal.channel.title}\n` +
+        `Price: ${deal.priceInTon} TON\n\n` +
+        `Waiting for advertiser to fund the escrow.`,
+      );
+    }
 
     return updatedDeal;
   });
