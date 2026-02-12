@@ -5,6 +5,12 @@ import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { getDeal, getEscrowInfo, getAppConfig } from '../api/client';
 
+/** Format TON cleanly: no scientific notation, trim trailing zeros */
+function formatTon(amount: number): string {
+  if (amount <= 0) return '0';
+  return amount.toFixed(4).replace(/\.?0+$/, '');
+}
+
 export function PaymentPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -40,10 +46,21 @@ export function PaymentPage() {
 
   if (!deal || !escrow) return <Placeholder description="Loading payment..." />;
 
-  const amountNano = Math.round(deal.priceInTon * 1e9).toString();
   const isTestnet = appConfig?.tonNetwork !== 'mainnet';
-  const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}`;
-  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}`;
+  const currentBalance = escrow.currentBalance || 0;
+  const hasPartialPayment = currentBalance > 0 && currentBalance < deal.priceInTon;
+
+  // Calculate remaining amount (what the user still needs to send)
+  const remaining = Math.max(0, deal.priceInTon - currentBalance);
+  const remainingNano = Math.round(remaining * 1e9).toString();
+  const fullAmountNano = Math.round(deal.priceInTon * 1e9).toString();
+
+  // Use remaining amount for deeplinks when there's partial payment, full amount otherwise
+  const payAmountNano = hasPartialPayment ? remainingNano : fullAmountNano;
+  const payAmountTon = hasPartialPayment ? remaining : deal.priceInTon;
+
+  const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}`;
+  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}`;
 
   const copyAddress = () => {
     if (escrow.address) {
@@ -69,13 +86,23 @@ export function PaymentPage() {
     }
 
     // In Telegram WebView, TON Connect bridge is unreliable —
-    // open wallet directly via deeplink (same as "Open in Tonkeeper")
+    // open wallet directly via deeplink
     openInWallet();
   };
 
+  const headerText = hasPartialPayment
+    ? `Pay remaining ${formatTon(remaining)} TON`
+    : `Pay ${formatTon(deal.priceInTon)} TON`;
+
   return (
     <div>
-      <Section header={`Pay ${deal.priceInTon} TON`}>
+      <Section header={headerText}>
+        {hasPartialPayment && (
+          <div style={{ padding: '8px 16px', fontSize: 13, color: 'var(--tg-theme-hint-color)' }}>
+            Received {formatTon(currentBalance)} of {formatTon(deal.priceInTon)} TON.
+            Please send the remaining {formatTon(remaining)} TON to complete.
+          </div>
+        )}
         <div style={{ textAlign: 'center', padding: '20px' }}>
           <div style={{ marginBottom: 16, fontSize: 14, color: 'var(--tg-theme-hint-color)' }}>
             Scan QR or pay with connected wallet
@@ -123,7 +150,9 @@ export function PaymentPage() {
             stretched
             onClick={handlePay}
           >
-            {wallet ? `Pay ${deal.priceInTon} TON` : 'Connect Wallet & Pay'}
+            {wallet
+              ? `Pay ${formatTon(payAmountTon)} TON`
+              : 'Connect Wallet & Pay'}
           </Button>
         </div>
         {wallet && (
@@ -151,8 +180,15 @@ export function PaymentPage() {
               : escrow.address}
           </span>
         </Cell>
-        <Cell subtitle="Amount">{deal.priceInTon} TON</Cell>
-        <Cell subtitle="Current balance">{escrow.currentBalance} TON</Cell>
+        <Cell subtitle="Required">{formatTon(deal.priceInTon)} TON</Cell>
+        <Cell subtitle="Received">{formatTon(currentBalance)} TON</Cell>
+        {hasPartialPayment && (
+          <Cell subtitle="Remaining">
+            <span style={{ color: '#FF9500', fontWeight: 600 }}>
+              {formatTon(remaining)} TON
+            </span>
+          </Cell>
+        )}
       </Section>
 
       {escrow.explorerUrl && (
@@ -176,7 +212,7 @@ export function PaymentPage() {
         <div style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, color: 'var(--tg-theme-hint-color)' }}>
           Waiting for payment confirmation...
           <br />
-          Checking every 30 seconds.
+          Page refreshes automatically.
         </div>
       </Section>
     </div>

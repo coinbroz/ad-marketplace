@@ -1,5 +1,6 @@
 import { Address } from '@ton/ton';
 import { prisma } from '../lib/prisma.js';
+import { redis } from '../lib/redis.js';
 import {
   getWalletBalance,
   decryptSecretKey,
@@ -10,6 +11,19 @@ import {
 import { config, GAS_RESERVE_TON, TON_ENDPOINT } from '../config.js';
 import { transitionDeal } from './deals.js';
 import { notifyUser } from './telegram.js';
+
+// Payment tolerance: accept payments within 0.01 TON of required amount.
+// Covers TON message forwarding fees and minor rounding differences.
+const PAYMENT_TOLERANCE = toNano(0.01);
+
+/**
+ * Format TON amounts to a clean string (no scientific notation, trim trailing zeros).
+ */
+function formatTon(amount: number): string {
+  if (amount <= 0) return '0';
+  // Use fixed 4 decimals, then trim trailing zeros
+  return amount.toFixed(4).replace(/\.?0+$/, '');
+}
 
 /**
  * Check if a string is a valid TON address.
@@ -74,8 +88,8 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
   const balance = await getWalletBalance(deal.escrowAddress);
   const requiredAmount = toNano(deal.priceInTon);
 
-  if (balance >= requiredAmount) {
-    // Payment received — get transaction hash
+  if (balance >= requiredAmount - PAYMENT_TOLERANCE) {
+    // Payment received (full or within tolerance) — get transaction hash
     const txHash = await getLatestTxHash(deal.escrowAddress);
 
     await transitionDeal(dealId, 'FUNDED', {
@@ -96,12 +110,15 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
       },
     });
 
+    // Clear partial payment notification key
+    await redis.del(`partial_notified:${dealId}`);
+
     // Notify both parties with next-step hints
     const txLine = isRealTxHash(txHash)
       ? `\n🔗 <a href="${txExplorerUrl(txHash!)}">View transaction on TON Explorer</a>`
       : '';
-    const advertiserMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(balance)} TON${txLine}\n\n📋 Now send your ad brief and materials: use /submitbrief`;
-    const ownerMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(balance)} TON${txLine}\n\n⏳ Waiting for the advertiser to send their ad brief.`;
+    const advertiserMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${formatTon(fromNano(balance))} TON${txLine}\n\n📋 Now send your ad brief and materials: use /submitbrief`;
+    const ownerMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${formatTon(fromNano(balance))} TON${txLine}\n\n⏳ Waiting for the advertiser to send their ad brief.`;
 
     await Promise.all([
       notifyUser(deal.advertiser.telegramId, advertiserMsg),
@@ -111,15 +128,28 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
     return true;
   }
 
-  // Check partial payment
-  if (balance > 0n && balance < requiredAmount) {
-    const partialAmount = fromNano(balance);
-    const required = deal.priceInTon;
+  // Check partial payment (real underpayment, not within tolerance)
+  if (balance > 0n) {
+    const receivedTon = formatTon(fromNano(balance));
+    const requiredTon = formatTon(deal.priceInTon);
+    const remainingNano = requiredAmount - balance;
+    const remainingTon = formatTon(fromNano(remainingNano));
 
-    await notifyUser(
-      deal.advertiser.telegramId,
-      `⚠️ <b>Partial payment detected</b>\n\nDeal #${dealId}\nReceived: ${partialAmount} TON\nRequired: ${required} TON\n\nPlease send the remaining ${required - partialAmount} TON to complete the payment.`,
-    );
+    // Throttle: only notify if balance changed OR 10 minutes passed since last notification
+    const redisKey = `partial_notified:${dealId}`;
+    const lastNotifiedBalance = await redis.get(redisKey);
+    const currentBalanceStr = balance.toString();
+
+    if (lastNotifiedBalance !== currentBalanceStr) {
+      // Balance changed (new partial payment) or first time — notify and set 10min TTL
+      await redis.set(redisKey, currentBalanceStr, 'EX', 600);
+
+      await notifyUser(
+        deal.advertiser.telegramId,
+        `⚠️ <b>Partial payment detected</b>\n\nDeal #${dealId}\nReceived: ${receivedTon} TON\nRequired: ${requiredTon} TON\n\nPlease send the remaining <b>${remainingTon} TON</b> to complete the payment.`,
+      );
+    }
+    // else: same balance, within 10min cooldown — skip notification
   }
 
   return false;
