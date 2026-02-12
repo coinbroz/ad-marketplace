@@ -104,6 +104,8 @@ export interface EscrowInfo {
   paymentTx: string | null;
   payoutTx: string | null;
   refundTx: string | null;
+  payoutPending: boolean;
+  refundPending: boolean;
 }
 
 export interface PaginatedResponse<T> {
