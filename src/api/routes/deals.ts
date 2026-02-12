@@ -14,7 +14,7 @@ import {
   getDealEvents,
   moveToPayment,
 } from '../../services/deals.js';
-import { getEscrowInfo, refundFunds } from '../../services/ton.js';
+import { getEscrowInfo, refundFunds, executePendingRefund } from '../../services/ton.js';
 import { prisma } from '../../lib/prisma.js';
 import { notifyUser } from '../../services/telegram.js';
 
@@ -301,6 +301,19 @@ export async function dealRoutes(app: FastifyInstance) {
         console.error(`Late refund failed for deal ${dealId}:`, err);
       }
       // Re-fetch after refund
+      return prisma.deal.findUniqueOrThrow({
+        where: { id: dealId },
+        include: { channel: true, advertiser: true, channelOwner: true },
+      });
+    }
+
+    // If deal is REFUNDED but TON wasn't actually sent (placeholder hash), retry now
+    if (deal.status === 'REFUNDED' && deal.escrowAddress) {
+      try {
+        await executePendingRefund(dealId);
+      } catch (err) {
+        console.error(`Pending refund execution failed for deal ${dealId}:`, err);
+      }
       return prisma.deal.findUniqueOrThrow({
         where: { id: dealId },
         include: { channel: true, advertiser: true, channelOwner: true },

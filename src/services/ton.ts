@@ -25,6 +25,35 @@ function isValidTonAddress(address: string): boolean {
 }
 
 /**
+ * Check if a TX hash is a real blockchain hash (not a placeholder).
+ * Placeholder hashes start with 'payout_', 'refund_', etc.
+ */
+function isRealTxHash(hash: string | null | undefined): boolean {
+  if (!hash) return false;
+  return !hash.startsWith('payout_') && !hash.startsWith('refund_');
+}
+
+/**
+ * Build a TON explorer link for a transaction hash.
+ */
+function txExplorerUrl(hash: string): string {
+  const base = config.TON_NETWORK === 'mainnet'
+    ? 'https://tonscan.org'
+    : 'https://testnet.tonscan.org';
+  return `${base}/tx/${encodeURIComponent(hash)}`;
+}
+
+/**
+ * Build a TON explorer link for an address.
+ */
+function addressExplorerUrl(address: string): string {
+  const base = config.TON_NETWORK === 'mainnet'
+    ? 'https://tonscan.org'
+    : 'https://testnet.tonscan.org';
+  return `${base}/${address}`;
+}
+
+/**
  * Check payment for a deal in AWAITING_PAYMENT status.
  * Called by the payment-monitor worker.
  */
@@ -68,8 +97,11 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
     });
 
     // Notify both parties with next-step hints
-    const advertiserMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(balance)} TON\nTX: <code>${txHash || 'confirming...'}</code>\n\n📋 Now send your ad brief and materials: use /submitbrief`;
-    const ownerMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(balance)} TON\nTX: <code>${txHash || 'confirming...'}</code>\n\n⏳ Waiting for the advertiser to send their ad brief.`;
+    const txLine = isRealTxHash(txHash)
+      ? `\n🔗 <a href="${txExplorerUrl(txHash!)}">View transaction on TON Explorer</a>`
+      : '';
+    const advertiserMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(balance)} TON${txLine}\n\n📋 Now send your ad brief and materials: use /submitbrief`;
+    const ownerMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(balance)} TON${txLine}\n\n⏳ Waiting for the advertiser to send their ad brief.`;
 
     await Promise.all([
       notifyUser(deal.advertiser.telegramId, advertiserMsg),
@@ -180,7 +212,10 @@ export async function releaseFunds(dealId: number): Promise<string | null> {
   });
 
   // Notify both parties
-  const payoutMsg = `✅ <b>Payout completed!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(ownerAmount)} TON\nTX: <code>${txHash}</code>`;
+  const txLine = isRealTxHash(txHash)
+    ? `\n🔗 <a href="${txExplorerUrl(txHash)}">View transaction on TON Explorer</a>`
+    : '';
+  const payoutMsg = `✅ <b>Payout completed!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(ownerAmount)} TON${txLine}`;
 
   await Promise.all([
     notifyUser(deal.channelOwner.telegramId, payoutMsg),
@@ -270,17 +305,122 @@ export async function refundFunds(dealId: number): Promise<string | null> {
   });
 
   // Notify both parties
-  const hasRealTx = !txHash.startsWith('refund_awaiting');
-  const refundMsg = hasRealTx
-    ? `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\nTo: <code>${refundToAddress}</code>\nTX: <code>${txHash}</code>`
-    : `🔄 <b>Refund initiated</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\n\n📝 Please open the deal in Mini App and enter your refund wallet address.`;
+  const hasRealAddress = isValidTonAddress(refundToAddress);
+  const hasRealTx = isRealTxHash(txHash);
+  const txLine = hasRealTx
+    ? `\n🔗 <a href="${txExplorerUrl(txHash)}">View transaction on TON Explorer</a>`
+    : '';
+
+  let refundMsg: string;
+  if (hasRealAddress && hasRealTx) {
+    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\nTo: <code>${refundToAddress}</code>${txLine}`;
+  } else if (hasRealAddress) {
+    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\nTo: <code>${refundToAddress}</code>\n\n⏳ Transaction is being processed on the blockchain.`;
+  } else {
+    refundMsg = `🔄 <b>Refund initiated</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\n\n📝 Please open the deal in Mini App and enter your refund wallet address.`;
+  }
 
   await Promise.all([
     notifyUser(deal.advertiser.telegramId, refundMsg),
-    notifyUser(deal.channelOwner.telegramId, `🔄 <b>Refund processed</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON`),
+    notifyUser(deal.channelOwner.telegramId, `🔄 <b>Refund processed</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON${txLine}`),
   ]);
 
   return txHash;
+}
+
+/**
+ * Execute a pending refund — retry the actual TON transfer for a REFUNDED deal
+ * where the on-chain transaction wasn't completed (placeholder hash).
+ * Called when advertiser saves/updates refund address on an already-REFUNDED deal.
+ */
+export async function executePendingRefund(dealId: number): Promise<string | null> {
+  const deal = await prisma.deal.findUniqueOrThrow({
+    where: { id: dealId },
+    include: {
+      escrowWallet: true,
+      advertiser: { select: { telegramId: true, tonWalletAddress: true, firstName: true } },
+      channel: { select: { title: true } },
+    },
+  });
+
+  if (deal.status !== 'REFUNDED' || !deal.escrowWallet || !deal.escrowAddress) {
+    return null;
+  }
+
+  // Only retry if current txHash is a placeholder
+  if (isRealTxHash(deal.refundTxHash)) {
+    return deal.refundTxHash; // Already sent
+  }
+
+  const refundToAddress = deal.refundAddress || deal.advertiser.tonWalletAddress;
+  if (!refundToAddress || !isValidTonAddress(refundToAddress)) {
+    return null; // No valid address to send to
+  }
+
+  // Check if escrow still has balance
+  let balance: bigint;
+  try {
+    balance = await getWalletBalance(deal.escrowAddress);
+    if (balance === 0n) {
+      console.log(`Deal ${dealId}: escrow balance is 0, refund may have already been sent`);
+      return null;
+    }
+  } catch (err) {
+    console.error(`Balance check failed for pending refund deal ${dealId}:`, err);
+    balance = toNano(deal.priceInTon);
+  }
+
+  const secretKey = decryptSecretKey({
+    encrypted: deal.escrowWallet.secretKeyEnc,
+    iv: deal.escrowWallet.secretKeyIv,
+    tag: deal.escrowWallet.secretKeyTag,
+  });
+
+  const gasReserve = toNano(GAS_RESERVE_TON);
+  const refundAmount = balance > gasReserve ? balance - gasReserve : balance;
+  const publicKey = Buffer.from(deal.escrowWallet.publicKey, 'hex');
+
+  console.log(`Executing pending refund for deal ${dealId}: ${fromNano(refundAmount)} TON → ${refundToAddress}`);
+
+  const onChainHash = await sendFromEscrow({
+    publicKey,
+    secretKey,
+    toAddress: refundToAddress,
+    amount: refundAmount,
+  });
+
+  if (onChainHash) {
+    // Update the deal with the real tx hash
+    await prisma.deal.update({
+      where: { id: dealId },
+      data: { refundTxHash: onChainHash },
+    });
+
+    await prisma.dealEvent.create({
+      data: {
+        dealId,
+        type: 'payment',
+        data: {
+          action: 'refund_executed',
+          amount: fromNano(refundAmount),
+          txHash: onChainHash,
+          toAddress: refundToAddress,
+        },
+      },
+    });
+
+    const txLine = `\n🔗 <a href="${txExplorerUrl(onChainHash)}">View transaction on TON Explorer</a>`;
+    await notifyUser(
+      deal.advertiser.telegramId,
+      `✅ <b>Refund sent!</b>\n\nDeal #${dealId}\nAmount: ${fromNano(refundAmount)} TON\nTo: <code>${refundToAddress}</code>${txLine}`,
+    );
+
+    console.log(`Pending refund executed for deal ${dealId}: ${onChainHash}`);
+  } else {
+    console.warn(`Pending refund for deal ${dealId}: transaction sent but hash not confirmed`);
+  }
+
+  return onChainHash;
 }
 
 /**
@@ -309,10 +449,6 @@ export async function getEscrowInfo(dealId: number) {
     }
   }
 
-  const explorerBase = config.TON_NETWORK === 'mainnet'
-    ? 'https://tonscan.org'
-    : 'https://testnet.tonscan.org';
-
   // Convert stored address to correct network format for display
   const isTestnet = config.TON_NETWORK === 'testnet';
   const displayAddress = deal.escrowAddress
@@ -324,10 +460,13 @@ export async function getEscrowInfo(dealId: number) {
     requiredAmount: deal.priceInTon,
     currentBalance: balance,
     status: deal.status,
-    explorerUrl: displayAddress ? `${explorerBase}/${displayAddress}` : null,
-    paymentTx: deal.paidTxHash ? `${explorerBase}/transaction/${deal.paidTxHash}` : null,
-    payoutTx: deal.payoutTxHash ? `${explorerBase}/transaction/${deal.payoutTxHash}` : null,
-    refundTx: deal.refundTxHash ? `${explorerBase}/transaction/${deal.refundTxHash}` : null,
+    explorerUrl: displayAddress ? addressExplorerUrl(displayAddress) : null,
+    paymentTx: isRealTxHash(deal.paidTxHash) ? txExplorerUrl(deal.paidTxHash!) : null,
+    payoutTx: isRealTxHash(deal.payoutTxHash) ? txExplorerUrl(deal.payoutTxHash!) : null,
+    refundTx: isRealTxHash(deal.refundTxHash) ? txExplorerUrl(deal.refundTxHash!) : null,
+    // Raw status for UI to show appropriate messages
+    payoutPending: deal.payoutTxHash && !isRealTxHash(deal.payoutTxHash),
+    refundPending: deal.refundTxHash && !isRealTxHash(deal.refundTxHash),
   };
 }
 
