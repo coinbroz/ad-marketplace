@@ -63,11 +63,20 @@ export function PaymentPage() {
       return;
     }
 
+    // Check network mismatch before sending
+    const walletChain = wallet.account.chain;
+    if (walletChain && walletChain !== network) {
+      const expected = isTestnet ? 'testnet' : 'mainnet';
+      window.Telegram?.WebApp?.showAlert?.(
+        `Your wallet is connected to a different network. Please disconnect and reconnect on ${expected}, or use "Open in Tonkeeper" button.`,
+      );
+      return;
+    }
+
     setSending(true);
     try {
       await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 600,
-        network,
+        validUntil: Math.floor(Date.now() / 1000) + 300,
         messages: [
           {
             address: escrow.address!,
@@ -77,10 +86,16 @@ export function PaymentPage() {
       });
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
     } catch (err) {
-      if ((err as Error).message?.includes('Interrupted') || (err as Error).message?.includes('Cancelled')) {
+      const msg = (err as Error).message || '';
+      if (msg.includes('Interrupted') || msg.includes('Cancelled') || msg.includes('cancel')) {
         // User cancelled — do nothing
+      } else if (msg.includes('not sent') || msg.includes('TON_CONNECT_SDK_ERROR')) {
+        // Bridge timeout or connection issue — suggest deeplink fallback
+        window.Telegram?.WebApp?.showAlert?.(
+          'Could not send via TON Connect. Please tap "Open in Tonkeeper" to complete the payment directly.',
+        );
       } else {
-        window.Telegram?.WebApp?.showAlert?.(`Payment error: ${(err as Error).message}`);
+        window.Telegram?.WebApp?.showAlert?.(`Payment error: ${msg}`);
       }
     } finally {
       setSending(false);
