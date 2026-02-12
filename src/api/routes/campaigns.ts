@@ -102,11 +102,15 @@ export async function campaignRoutes(app: FastifyInstance) {
         error: `Channel needs at least ${campaign.minAvgViews.toLocaleString()} avg views (yours: ${channel.avgViewCount.toLocaleString()})`,
       });
     }
-    if (campaign.targetLanguage && channel.language &&
-        channel.language.toLowerCase() !== campaign.targetLanguage.toLowerCase()) {
-      return reply.status(400).send({
-        error: `Campaign requires ${campaign.targetLanguage} channels (yours: ${channel.language})`,
-      });
+    if (campaign.targetLanguage && channel.language) {
+      const la = channel.language.toLowerCase(), lb = campaign.targetLanguage.toLowerCase();
+      const match = la === lb || la.includes(lb) || lb.includes(la) ||
+        (la.length >= 3 && lb.length >= 3 && la.slice(0, 3) === lb.slice(0, 3));
+      if (!match) {
+        return reply.status(400).send({
+          error: `Campaign requires ${campaign.targetLanguage} channels (yours: ${channel.language})`,
+        });
+      }
     }
 
     // Check for existing deal for this channel + campaign

@@ -47,12 +47,20 @@ export function CampaignPage({ user }: Props) {
   if (error || !campaign) return <Placeholder description="Campaign not found" />;
 
   const isOwner = user?.id === campaign.advertiserId;
+
+  // Fuzzy language match: exact, includes, or same 3-char prefix
+  const langMatch = (a: string, b: string) => {
+    const la = a.toLowerCase(), lb = b.toLowerCase();
+    return la === lb || la.includes(lb) || lb.includes(la) ||
+      (la.length >= 3 && lb.length >= 3 && la.slice(0, 3) === lb.slice(0, 3));
+  };
+
   const allMyChannels = me?.channels?.filter((c) => c.botIsAdmin && c.isActive) || [];
   const myChannels = allMyChannels.filter((c) => {
     if (campaign.minSubscribers && c.subscriberCount < campaign.minSubscribers) return false;
     if (campaign.minAvgViews && c.avgViewCount < (campaign.minAvgViews ?? 0)) return false;
     if (campaign.targetLanguage && c.language &&
-        c.language.toLowerCase() !== campaign.targetLanguage.toLowerCase()) return false;
+        !langMatch(c.language, campaign.targetLanguage)) return false;
     return true;
   });
   const hasChannelsButNoneQualify = allMyChannels.length > 0 && myChannels.length === 0;

@@ -87,6 +87,13 @@ export function MarketplacePage({ user }: Props) {
     queryFn: getMe,
   });
 
+  // Fuzzy language match: exact, includes, or same 3-char prefix
+  const langMatch = (a: string, b: string) => {
+    const la = a.toLowerCase(), lb = b.toLowerCase();
+    return la === lb || la.includes(lb) || lb.includes(la) ||
+      (la.length >= 3 && lb.length >= 3 && la.slice(0, 3) === lb.slice(0, 3));
+  };
+
   // Filter campaigns: only show ones where at least one user's channel qualifies
   const myChannels = meQuery.data?.channels?.filter((c) => c.botIsAdmin && c.isActive) || [];
   const filteredCampaigns = campaignsQuery.data?.campaigns?.filter((campaign: Campaign) => {
@@ -101,7 +108,7 @@ export function MarketplacePage({ user }: Props) {
       if (campaign.minSubscribers && ch.subscriberCount < campaign.minSubscribers) return false;
       if (campaign.minAvgViews && ch.avgViewCount < (campaign.minAvgViews ?? 0)) return false;
       if (campaign.targetLanguage && ch.language &&
-          ch.language.toLowerCase() !== campaign.targetLanguage.toLowerCase()) return false;
+          !langMatch(ch.language, campaign.targetLanguage)) return false;
       return true;
     });
   });
