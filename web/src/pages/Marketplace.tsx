@@ -91,7 +91,7 @@ export function MarketplacePage({ user }: Props) {
   const myChannels = meQuery.data?.channels?.filter((c) => c.botIsAdmin && c.isActive) || [];
   const filteredCampaigns = campaignsQuery.data?.campaigns?.filter((campaign: Campaign) => {
     // No requirements → show to everyone
-    if (!campaign.minSubscribers && !campaign.minAvgViews) return true;
+    if (!campaign.minSubscribers && !campaign.minAvgViews && !campaign.targetLanguage) return true;
     // User has no channels → show all (they might be advertisers or plan to add a channel)
     if (myChannels.length === 0) return true;
     // User is the campaign owner → always show
@@ -100,6 +100,8 @@ export function MarketplacePage({ user }: Props) {
     return myChannels.some((ch) => {
       if (campaign.minSubscribers && ch.subscriberCount < campaign.minSubscribers) return false;
       if (campaign.minAvgViews && ch.avgViewCount < (campaign.minAvgViews ?? 0)) return false;
+      if (campaign.targetLanguage && ch.language &&
+          ch.language.toLowerCase() !== campaign.targetLanguage.toLowerCase()) return false;
       return true;
     });
   });

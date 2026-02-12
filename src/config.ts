@@ -11,7 +11,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
 
   // TON
-  TON_NETWORK: z.enum(['mainnet', 'testnet']).default('testnet'),
+  TON_NETWORK: z.enum(['mainnet', 'testnet']).default('mainnet'),
   TON_API_KEY: z.string().default(''),
   ESCROW_ENCRYPTION_KEY: z.string().min(32, 'ESCROW_ENCRYPTION_KEY must be at least 32 characters'),
   HOT_WALLET_MNEMONIC: z.string().default(''),

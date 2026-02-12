@@ -102,6 +102,12 @@ export async function campaignRoutes(app: FastifyInstance) {
         error: `Channel needs at least ${campaign.minAvgViews.toLocaleString()} avg views (yours: ${channel.avgViewCount.toLocaleString()})`,
       });
     }
+    if (campaign.targetLanguage && channel.language &&
+        channel.language.toLowerCase() !== campaign.targetLanguage.toLowerCase()) {
+      return reply.status(400).send({
+        error: `Campaign requires ${campaign.targetLanguage} channels (yours: ${channel.language})`,
+      });
+    }
 
     // Check for existing deal for this channel + campaign
     const existingDeal = await prisma.deal.findFirst({

@@ -51,6 +51,8 @@ export function CampaignPage({ user }: Props) {
   const myChannels = allMyChannels.filter((c) => {
     if (campaign.minSubscribers && c.subscriberCount < campaign.minSubscribers) return false;
     if (campaign.minAvgViews && c.avgViewCount < (campaign.minAvgViews ?? 0)) return false;
+    if (campaign.targetLanguage && c.language &&
+        c.language.toLowerCase() !== campaign.targetLanguage.toLowerCase()) return false;
     return true;
   });
   const hasChannelsButNoneQualify = allMyChannels.length > 0 && myChannels.length === 0;
@@ -277,7 +279,8 @@ export function CampaignPage({ user }: Props) {
             description={
               `None of your channels meet the requirements` +
               (campaign.minSubscribers ? ` (min ${campaign.minSubscribers.toLocaleString()} subscribers)` : '') +
-              (campaign.minAvgViews ? ` (min ${campaign.minAvgViews.toLocaleString()} avg views)` : '')
+              (campaign.minAvgViews ? ` (min ${campaign.minAvgViews.toLocaleString()} avg views)` : '') +
+              (campaign.targetLanguage ? ` (language: ${campaign.targetLanguage})` : '')
             }
           />
         </Section>
