@@ -381,6 +381,9 @@ export async function executePendingRefund(dealId: number): Promise<string | nul
   const publicKey = Buffer.from(deal.escrowWallet.publicKey, 'hex');
 
   console.log(`Executing pending refund for deal ${dealId}: ${fromNano(refundAmount)} TON → ${refundToAddress}`);
+  console.log(`  escrowAddress: ${deal.escrowAddress}`);
+  console.log(`  publicKey (hex): ${deal.escrowWallet.publicKey}`);
+  console.log(`  balance: ${fromNano(balance)} TON, gasReserve: ${GAS_RESERVE_TON} TON, refundAmount: ${fromNano(refundAmount)} TON`);
 
   const onChainHash = await sendFromEscrow({
     publicKey,

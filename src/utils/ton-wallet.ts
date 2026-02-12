@@ -170,38 +170,50 @@ export async function sendFromEscrow(params: {
 }): Promise<string | null> {
   const { publicKey, secretKey, toAddress, amount } = params;
 
+  const endpoint = `${TON_ENDPOINT}/jsonRPC`;
+  console.log(`[sendFromEscrow] Starting: endpoint=${endpoint}, toAddress=${toAddress}, amount=${fromNano(amount)} TON`);
+  console.log(`[sendFromEscrow] publicKey length=${publicKey.length}, secretKey length=${secretKey.length}`);
+
   const client = new TonClient({
-    endpoint: `${TON_ENDPOINT}/jsonRPC`,
+    endpoint,
     apiKey: config.TON_API_KEY || undefined,
   });
 
   const wallet = WalletContractV4.create({ workchain: 0, publicKey });
+  const isTestnet = config.TON_NETWORK === 'testnet';
+  const escrowAddress = wallet.address.toString({ bounceable: false, testOnly: isTestnet });
+  console.log(`[sendFromEscrow] Reconstructed wallet address: ${escrowAddress}`);
+
   const contract = client.open(wallet);
 
   // Get seqno (0 if wallet not deployed yet — sendTransfer will auto-deploy)
   let seqno = 0;
   try {
     seqno = await contract.getSeqno();
-  } catch {
+    console.log(`[sendFromEscrow] Got seqno: ${seqno}`);
+  } catch (err) {
+    console.log(`[sendFromEscrow] getSeqno failed (wallet not deployed yet), using seqno=0:`, err instanceof Error ? err.message : err);
     seqno = 0;
   }
 
   // Send transfer (includes stateInit for auto-deploy when seqno === 0)
-  await contract.sendTransfer({
-    seqno,
-    secretKey,
-    messages: [
-      internal({
-        to: toAddress,
-        value: amount,
-        bounce: false,
-      }),
-    ],
-  });
-
-  const isTestnet = config.TON_NETWORK === 'testnet';
-  const escrowAddress = wallet.address.toString({ bounceable: false, testOnly: isTestnet });
-  console.log(`TON transfer sent from ${escrowAddress} → ${toAddress}, amount: ${fromNano(amount)} TON`);
+  try {
+    await contract.sendTransfer({
+      seqno,
+      secretKey,
+      messages: [
+        internal({
+          to: toAddress,
+          value: amount,
+          bounce: false,
+        }),
+      ],
+    });
+    console.log(`[sendFromEscrow] sendTransfer succeeded from ${escrowAddress} → ${toAddress}`);
+  } catch (err) {
+    console.error(`[sendFromEscrow] sendTransfer FAILED:`, err);
+    throw err; // Re-throw so caller sees the error
+  }
 
   // Wait for transaction confirmation (poll seqno change)
   for (let attempt = 0; attempt < 20; attempt++) {
