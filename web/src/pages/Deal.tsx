@@ -14,7 +14,7 @@ import {
   setRefundAddress,
   getDealEvents,
 } from '../api/client';
-import type { User, DealEvent } from '../types';
+import type { User, DealEvent, EscrowInfo } from '../types';
 
 interface Props {
   user: User | null;
@@ -352,18 +352,28 @@ export function DealPage({ user }: Props) {
             </Cell>
           )}
           {escrow.paymentTx && (
-            <Cell onClick={() => window.open(escrow.paymentTx!, '_blank')}>
-              Payment TX
+            <Cell subtitle="View on Explorer" onClick={() => window.open(escrow.paymentTx!, '_blank')}>
+              Payment Transaction
             </Cell>
           )}
           {escrow.payoutTx && (
-            <Cell onClick={() => window.open(escrow.payoutTx!, '_blank')}>
-              Payout TX
+            <Cell subtitle="View on Explorer" onClick={() => window.open(escrow.payoutTx!, '_blank')}>
+              Payout Transaction
+            </Cell>
+          )}
+          {escrow.payoutPending && !escrow.payoutTx && (
+            <Cell subtitle="Processing on blockchain">
+              Payout Transaction
             </Cell>
           )}
           {escrow.refundTx && (
-            <Cell onClick={() => window.open(escrow.refundTx!, '_blank')}>
-              Refund TX
+            <Cell subtitle="View on Explorer" onClick={() => window.open(escrow.refundTx!, '_blank')}>
+              Refund Transaction
+            </Cell>
+          )}
+          {escrow.refundPending && !escrow.refundTx && (
+            <Cell subtitle="Processing on blockchain">
+              Refund Transaction
             </Cell>
           )}
         </Section>
@@ -407,7 +417,7 @@ export function DealPage({ user }: Props) {
 
       {/* Refund address — shown to advertiser after cancellation/refund */}
       {(deal.status === 'REFUNDED' || (deal.status === 'CANCELLED' && deal.escrowAddress)) && isAdvertiser && (
-        <RefundAddressSection dealId={deal.id} deal={deal} queryClient={queryClient} />
+        <RefundAddressSection dealId={deal.id} deal={deal} escrow={escrow || null} queryClient={queryClient} />
       )}
 
       {/* Timeline */}
@@ -427,11 +437,19 @@ export function DealPage({ user }: Props) {
   );
 }
 
-function RefundAddressSection({ dealId, deal, queryClient }: { dealId: number; deal: { refundAddress: string | null; refundMemo: string | null; priceInTon: number }; queryClient: ReturnType<typeof useQueryClient> }) {
+function RefundAddressSection({ dealId, deal, escrow, queryClient }: {
+  dealId: number;
+  deal: { refundAddress: string | null; refundMemo: string | null; priceInTon: number };
+  escrow: EscrowInfo | null;
+  queryClient: ReturnType<typeof useQueryClient>;
+}) {
   const [address, setAddress] = useState(deal.refundAddress || '');
   const [memo, setMemo] = useState(deal.refundMemo || '');
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(!!deal.refundAddress);
+  const [editing, setEditing] = useState(false);
+
+  const isPending = escrow?.refundPending && !escrow?.refundTx;
+  const isCompleted = !!escrow?.refundTx;
 
   const handleSave = async () => {
     if (!address.trim()) {
@@ -442,7 +460,8 @@ function RefundAddressSection({ dealId, deal, queryClient }: { dealId: number; d
     try {
       await setRefundAddress(dealId, address.trim(), memo.trim() || undefined);
       queryClient.invalidateQueries({ queryKey: ['deal', dealId] });
-      setSaved(true);
+      queryClient.invalidateQueries({ queryKey: ['escrow', dealId] });
+      setEditing(false);
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
     } catch (err) {
       window.Telegram?.WebApp?.showAlert?.(err instanceof Error ? err.message : 'Failed to save');
@@ -451,33 +470,78 @@ function RefundAddressSection({ dealId, deal, queryClient }: { dealId: number; d
     }
   };
 
-  if (saved && deal.refundAddress) {
+  // Retry: re-sends the same address to trigger executePendingRefund on backend
+  const handleRetry = async () => {
+    if (!deal.refundAddress) return;
+    setSaving(true);
+    try {
+      await setRefundAddress(dealId, deal.refundAddress, deal.refundMemo || undefined);
+      queryClient.invalidateQueries({ queryKey: ['deal', dealId] });
+      queryClient.invalidateQueries({ queryKey: ['escrow', dealId] });
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+      window.Telegram?.WebApp?.showAlert?.('Refund retry initiated. Please wait 30-60 seconds for the blockchain transaction.');
+    } catch (err) {
+      window.Telegram?.WebApp?.showAlert?.(err instanceof Error ? err.message : 'Retry failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Address already saved — show status + retry/edit buttons
+  if (deal.refundAddress && !editing) {
     return (
       <Section header="Refund">
         <Cell subtitle="Refund address">{deal.refundAddress}</Cell>
         {deal.refundMemo && <Cell subtitle="Memo">{deal.refundMemo}</Cell>}
         <Cell subtitle="Amount">{deal.priceInTon} TON</Cell>
-        <div style={{
-          padding: '8px 16px',
-          fontSize: 13,
-          color: 'var(--tg-theme-hint-color, #999)',
-        }}>
-          Refund will be processed to this address.
-        </div>
+
+        {isCompleted && (
+          <div style={{ padding: '8px 16px', fontSize: 13, color: '#34C759' }}>
+            Refund sent successfully.
+            {escrow?.refundTx && (
+              <> <a href={escrow.refundTx} target="_blank" rel="noreferrer" style={{ color: '#007AFF' }}>View on Explorer</a></>
+            )}
+          </div>
+        )}
+
+        {isPending && (
+          <>
+            <div style={{ padding: '8px 16px', fontSize: 13, color: '#FF9500' }}>
+              Refund pending — TON transfer has not been confirmed on the blockchain yet.
+            </div>
+            <div style={{ padding: '8px 16px', display: 'flex', gap: 8 }}>
+              <Button size="l" stretched onClick={handleRetry} loading={saving}>
+                Retry Refund
+              </Button>
+              <Button size="l" mode="outline" onClick={() => setEditing(true)}>
+                Edit
+              </Button>
+            </div>
+          </>
+        )}
+
+        {!isCompleted && !isPending && (
+          <div style={{ padding: '8px 16px', fontSize: 13, color: 'var(--tg-theme-hint-color, #999)' }}>
+            Refund will be processed to this address.
+          </div>
+        )}
       </Section>
     );
   }
 
+  // Address input form (new or editing)
   return (
-    <Section header="Refund — Enter Your Wallet">
+    <Section header={editing ? 'Refund — Update Address' : 'Refund — Enter Your Wallet'}>
       <div style={{
         padding: '12px 16px',
         fontSize: 13,
         color: 'var(--tg-theme-hint-color, #999)',
         lineHeight: 1.4,
       }}>
-        The deal has been cancelled. Please enter your TON wallet address for the refund of {deal.priceInTon} TON.
-        {'\n\n'}If you sent from an exchange, enter your exchange deposit address and memo. If you sent from a personal wallet (Tonkeeper, TonHub, etc.), just enter the wallet address.
+        {editing
+          ? 'Update your refund wallet address. Saving will also retry the TON transfer.'
+          : `The deal has been cancelled. Please enter your TON wallet address for the refund of ${deal.priceInTon} TON.\n\nIf you sent from an exchange, enter your exchange deposit address and memo. If you sent from a personal wallet (Tonkeeper, TonHub, etc.), just enter the wallet address.`
+        }
       </div>
       <Input
         header="TON Wallet Address"
@@ -491,10 +555,15 @@ function RefundAddressSection({ dealId, deal, queryClient }: { dealId: number; d
         value={memo}
         onChange={(e) => setMemo(e.target.value)}
       />
-      <div style={{ padding: '8px 16px' }}>
+      <div style={{ padding: '8px 16px', display: 'flex', gap: 8 }}>
         <Button size="l" stretched onClick={handleSave} loading={saving}>
-          Save Refund Address
+          {editing ? 'Save & Retry Refund' : 'Save Refund Address'}
         </Button>
+        {editing && (
+          <Button size="l" mode="outline" onClick={() => { setEditing(false); setAddress(deal.refundAddress || ''); setMemo(deal.refundMemo || ''); }}>
+            Cancel
+          </Button>
+        )}
       </div>
     </Section>
   );
