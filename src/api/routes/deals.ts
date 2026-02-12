@@ -300,8 +300,14 @@ export async function dealRoutes(app: FastifyInstance) {
       },
     });
 
-    // If deal is CANCELLED (stuck from before refund fix), trigger refund now
+    // If deal is CANCELLED with escrow, check balance before attempting refund
     if (deal.status === 'CANCELLED' && deal.escrowAddress) {
+      const { getWalletBalance } = await import('../../utils/ton-wallet.js');
+      let balance = BigInt(0);
+      try { balance = await getWalletBalance(deal.escrowAddress); } catch { /* no balance */ }
+      if (balance <= BigInt(0)) {
+        return updated; // No funds to refund
+      }
       try {
         await refundFunds(dealId);
       } catch (err) {

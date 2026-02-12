@@ -415,8 +415,10 @@ export function DealPage({ user }: Props) {
         </div>
       )}
 
-      {/* Refund address — shown to advertiser after cancellation/refund */}
-      {(deal.status === 'REFUNDED' || (deal.status === 'CANCELLED' && deal.escrowAddress)) && isAdvertiser && (
+      {/* Refund address — shown to advertiser only when escrow has funds or refund in progress */}
+      {(deal.status === 'REFUNDED' || (deal.status === 'CANCELLED' && deal.escrowAddress && escrow &&
+        (escrow.currentBalance > 0 || escrow.refundTx || escrow.refundPending)
+      )) && isAdvertiser && (
         <RefundAddressSection dealId={deal.id} deal={deal} escrow={escrow || null} queryClient={queryClient} />
       )}
 
