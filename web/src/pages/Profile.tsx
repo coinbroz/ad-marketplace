@@ -14,6 +14,7 @@ export function ProfilePage({ user }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [walletAddress, setWalletAddress] = useState('');
+  const [editingWallet, setEditingWallet] = useState(false);
   const [newChannelUsername, setNewChannelUsername] = useState('');
   const [newChannelLanguage, setNewChannelLanguage] = useState('');
 
@@ -27,6 +28,7 @@ export function ProfilePage({ user }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me'] });
       setWalletAddress('');
+      setEditingWallet(false);
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
     },
     onError: (err: Error) => {
@@ -60,12 +62,26 @@ export function ProfilePage({ user }: Props) {
       </Section>
 
       <Section header="TON Wallet">
-        {me.tonWalletAddress ? (
-          <Cell subtitle="Connected wallet">
-            <span style={{ fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all' }}>
-              {me.tonWalletAddress}
-            </span>
-          </Cell>
+        {me.tonWalletAddress && !editingWallet ? (
+          <>
+            <Cell subtitle="Connected wallet">
+              <span style={{ fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                {me.tonWalletAddress}
+              </span>
+            </Cell>
+            <div style={{ padding: '4px 16px 8px' }}>
+              <Button
+                size="s"
+                mode="outline"
+                onClick={() => {
+                  setWalletAddress(me.tonWalletAddress || '');
+                  setEditingWallet(true);
+                }}
+              >
+                Change Wallet
+              </Button>
+            </div>
+          </>
         ) : (
           <>
             <Input
@@ -73,7 +89,12 @@ export function ProfilePage({ user }: Props) {
               value={walletAddress}
               onChange={(e) => setWalletAddress(e.target.value)}
             />
-            <div style={{ padding: '8px 0' }}>
+            {editingWallet && (
+              <div style={{ padding: '4px 16px', fontSize: 12, color: 'var(--tg-theme-hint-color)' }}>
+                Note: Active deals will still use the escrow address assigned at deal creation. Payouts for completed deals will go to this new address.
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, padding: '8px 16px' }}>
               <Button
                 size="l"
                 stretched
@@ -81,8 +102,21 @@ export function ProfilePage({ user }: Props) {
                 disabled={!walletAddress}
                 loading={walletMutation.isPending}
               >
-                Connect Wallet
+                {editingWallet ? 'Save Wallet' : 'Connect Wallet'}
               </Button>
+              {editingWallet && (
+                <Button
+                  size="l"
+                  stretched
+                  mode="outline"
+                  onClick={() => {
+                    setEditingWallet(false);
+                    setWalletAddress('');
+                  }}
+                >
+                  Cancel
+                </Button>
+              )}
             </div>
           </>
         )}
