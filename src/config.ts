@@ -66,7 +66,7 @@ export const DEAL_TIMEOUTS: Record<string, number> = {
 };
 
 // Post verification period (hours)
-export const POST_VERIFICATION_HOURS = 24;
+export const POST_VERIFICATION_HOURS = 0.1; // ~6 min for testing (restore to 24 for prod)
 
 // Worker intervals (milliseconds)
 export const PAYMENT_MONITOR_INTERVAL = 60_000;     // 60 seconds
