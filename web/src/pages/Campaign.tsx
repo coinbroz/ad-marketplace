@@ -223,7 +223,12 @@ export function CampaignPage({ user }: Props) {
               onClick={handleApply}
               disabled={!selectedChannel}
             >
-              Apply — {campaign.budgetPerPost} TON
+              Apply — {(() => {
+                if (!selectedChannel) return `${campaign.budgetPerPost} TON`;
+                const ch = myChannels.find((c) => c.id === selectedChannel);
+                const postPrice = ch?.prices?.find((p) => p.format === 'post');
+                return `${postPrice?.priceInTon ?? campaign.budgetPerPost} TON`;
+              })()}
             </Button>
           </div>
         </Section>
