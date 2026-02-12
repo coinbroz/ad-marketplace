@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { mnemonicToPrivateKey } from '@ton/crypto';
-import { WalletContractV4 } from '@ton/ton';
+import { TonClient, WalletContractV4, internal } from '@ton/ton';
 import { config, TON_ENDPOINT } from '../config.js';
 
 // ── Key Encryption (AES-256-GCM) ──────────────────────────
@@ -153,4 +153,82 @@ export function toNano(amount: number): bigint {
  */
 export function fromNano(amount: bigint): number {
   return Number(amount) / 1_000_000_000;
+}
+
+// ── Send from Escrow ──────────────────────────────────────
+
+/**
+ * Send TON from an escrow wallet to a recipient address.
+ * Handles auto-deployment of the wallet contract (stateInit included on first tx).
+ * Returns the on-chain transaction hash, or null if confirmation timed out.
+ */
+export async function sendFromEscrow(params: {
+  publicKey: Buffer;
+  secretKey: Buffer;
+  toAddress: string;
+  amount: bigint;
+}): Promise<string | null> {
+  const { publicKey, secretKey, toAddress, amount } = params;
+
+  const client = new TonClient({
+    endpoint: `${TON_ENDPOINT}/jsonRPC`,
+    apiKey: config.TON_API_KEY || undefined,
+  });
+
+  const wallet = WalletContractV4.create({ workchain: 0, publicKey });
+  const contract = client.open(wallet);
+
+  // Get seqno (0 if wallet not deployed yet — sendTransfer will auto-deploy)
+  let seqno = 0;
+  try {
+    seqno = await contract.getSeqno();
+  } catch {
+    seqno = 0;
+  }
+
+  // Send transfer (includes stateInit for auto-deploy when seqno === 0)
+  await contract.sendTransfer({
+    seqno,
+    secretKey,
+    messages: [
+      internal({
+        to: toAddress,
+        value: amount,
+        bounce: false,
+      }),
+    ],
+  });
+
+  const isTestnet = config.TON_NETWORK === 'testnet';
+  const escrowAddress = wallet.address.toString({ bounceable: false, testOnly: isTestnet });
+  console.log(`TON transfer sent from ${escrowAddress} → ${toAddress}, amount: ${fromNano(amount)} TON`);
+
+  // Wait for transaction confirmation (poll seqno change)
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await new Promise(r => setTimeout(r, 1500));
+    try {
+      const newSeqno = await contract.getSeqno();
+      if (newSeqno > seqno) {
+        // Transaction confirmed — wait a bit for indexing, then get tx hash
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          const txs = await getTransactions(escrowAddress, 1);
+          const tx = txs[0] as { transaction_id?: { hash?: string } } | undefined;
+          if (tx?.transaction_id?.hash) {
+            console.log(`TON transfer confirmed: ${tx.transaction_id.hash}`);
+            return tx.transaction_id.hash;
+          }
+        } catch {
+          // Indexing might be slow, return null
+        }
+        return null;
+      }
+    } catch {
+      // Contract might not be queryable yet, keep polling
+    }
+  }
+
+  // Transaction sent but not confirmed within ~30s — may still confirm
+  console.warn(`TON transfer from ${escrowAddress} sent but not confirmed within 30s`);
+  return null;
 }

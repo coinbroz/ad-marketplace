@@ -3,12 +3,26 @@ import { prisma } from '../lib/prisma.js';
 import {
   getWalletBalance,
   decryptSecretKey,
+  sendFromEscrow,
   fromNano,
   toNano,
 } from '../utils/ton-wallet.js';
 import { config, GAS_RESERVE_TON, TON_ENDPOINT } from '../config.js';
 import { transitionDeal } from './deals.js';
 import { notifyUser } from './telegram.js';
+
+/**
+ * Check if a string is a valid TON address.
+ */
+function isValidTonAddress(address: string): boolean {
+  if (!address || address === 'pending') return false;
+  try {
+    Address.parse(address);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Check payment for a deal in AWAITING_PAYMENT status.
@@ -128,12 +142,21 @@ export async function releaseFunds(dealId: number): Promise<string | null> {
     throw new Error('Insufficient escrow balance for payout');
   }
 
-  // TODO: Implement actual TON transaction
-  // 1. Hot wallet sends gas to escrow for deploy
-  // 2. Deploy escrow wallet contract
-  // 3. Send from escrow to channel owner
-  // 4. Send fee to hot wallet (if any)
-  const txHash = `payout_${dealId}_${Date.now()}`; // Placeholder
+  // Send real TON transaction if we have a valid address
+  let txHash: string;
+  if (isValidTonAddress(payoutToAddress)) {
+    const publicKey = Buffer.from(deal.escrowWallet.publicKey, 'hex');
+    const onChainHash = await sendFromEscrow({
+      publicKey,
+      secretKey,
+      toAddress: payoutToAddress,
+      amount: ownerAmount,
+    });
+    txHash = onChainHash || `payout_pending_${dealId}_${Date.now()}`;
+  } else {
+    console.warn(`Deal ${dealId}: no valid payout address, skipping TON transfer`);
+    txHash = `payout_no_address_${dealId}_${Date.now()}`;
+  }
 
   // Update deal
   await transitionDeal(dealId, 'COMPLETED', {
@@ -197,9 +220,10 @@ export async function refundFunds(dealId: number): Promise<string | null> {
     balance = toNano(deal.priceInTon);
   }
 
-  const refundToAddress = deal.advertiser.tonWalletAddress || 'pending';
+  // Use refundAddress (entered after cancel) > profile wallet > 'pending'
+  const refundToAddress = deal.refundAddress || deal.advertiser.tonWalletAddress || 'pending';
 
-  // Decrypt secret key (needed for future actual TON transfer)
+  // Decrypt secret key
   const secretKey = decryptSecretKey({
     encrypted: deal.escrowWallet.secretKeyEnc,
     iv: deal.escrowWallet.secretKeyIv,
@@ -209,11 +233,21 @@ export async function refundFunds(dealId: number): Promise<string | null> {
   const gasReserve = toNano(GAS_RESERVE_TON);
   const refundAmount = balance > gasReserve ? balance - gasReserve : balance;
 
-  // TODO: Implement actual TON transaction
-  // 1. Hot wallet sends gas to escrow for deploy
-  // 2. Deploy escrow wallet contract
-  // 3. Send from escrow back to advertiser
-  const txHash = `refund_${dealId}_${Date.now()}`; // Placeholder
+  // Send real TON transaction if we have a valid address
+  let txHash: string;
+  if (isValidTonAddress(refundToAddress)) {
+    const publicKey = Buffer.from(deal.escrowWallet.publicKey, 'hex');
+    const onChainHash = await sendFromEscrow({
+      publicKey,
+      secretKey,
+      toAddress: refundToAddress,
+      amount: refundAmount,
+    });
+    txHash = onChainHash || `refund_pending_${dealId}_${Date.now()}`;
+  } else {
+    console.warn(`Deal ${dealId}: no valid refund address, skipping TON transfer (address will be collected later)`);
+    txHash = `refund_awaiting_address_${dealId}_${Date.now()}`;
+  }
 
   // Update deal
   await transitionDeal(dealId, 'REFUNDED', {
@@ -236,11 +270,14 @@ export async function refundFunds(dealId: number): Promise<string | null> {
   });
 
   // Notify both parties
-  const refundMsg = `🔄 <b>Refund processed</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\nTX: <code>${txHash}</code>`;
+  const hasRealTx = !txHash.startsWith('refund_awaiting');
+  const refundMsg = hasRealTx
+    ? `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\nTo: <code>${refundToAddress}</code>\nTX: <code>${txHash}</code>`
+    : `🔄 <b>Refund initiated</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\n\n📝 Please open the deal in Mini App and enter your refund wallet address.`;
 
   await Promise.all([
     notifyUser(deal.advertiser.telegramId, refundMsg),
-    notifyUser(deal.channelOwner.telegramId, refundMsg),
+    notifyUser(deal.channelOwner.telegramId, `🔄 <b>Refund processed</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON`),
   ]);
 
   return txHash;
