@@ -89,8 +89,8 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
   const requiredAmount = toNano(deal.priceInTon);
 
   if (balance >= requiredAmount - PAYMENT_TOLERANCE) {
-    // Payment received (full or within tolerance) — get transaction hash
-    const txHash = await getLatestTxHash(deal.escrowAddress);
+    // Payment received (full or within tolerance) — get incoming transaction hash
+    const txHash = await getLatestIncomingTxHash(deal.escrowAddress, requiredAmount);
 
     await transitionDeal(dealId, 'FUNDED', {
       paidAt: new Date(),
@@ -114,11 +114,13 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
     await redis.del(`partial_notified:${dealId}`);
 
     // Notify both parties with next-step hints
-    const txLine = isRealTxHash(txHash)
-      ? `\n🔗 <a href="${txExplorerUrl(txHash!)}">View transaction on TON Explorer</a>`
-      : '';
-    const advertiserMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${formatTon(fromNano(balance))} TON${txLine}\n\n📋 Now send your ad brief and materials: use /submitbrief`;
-    const ownerMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${formatTon(fromNano(balance))} TON${txLine}\n\n⏳ Waiting for the advertiser to send their ad brief.`;
+    // Always link to the escrow address page (reliable), optionally add tx link
+    const isTestnet = config.TON_NETWORK === 'testnet';
+    const displayAddr = Address.parse(deal.escrowAddress).toString({ bounceable: false, testOnly: isTestnet });
+    const addrLine = `\n🔗 <a href="${addressExplorerUrl(displayAddr)}">View escrow on TON Explorer</a>`;
+    const amountStr = formatTon(fromNano(balance));
+    const advertiserMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${amountStr} TON${addrLine}\n\n📋 Now send your ad brief and materials: use /submitbrief`;
+    const ownerMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${amountStr} TON${addrLine}\n\n⏳ Waiting for the advertiser to send their ad brief.`;
 
     await Promise.all([
       notifyUser(deal.advertiser.telegramId, advertiserMsg),
@@ -505,19 +507,42 @@ export async function getEscrowInfo(dealId: number) {
 
 // ── Helper ─────────────────────────────────────────────────
 
-async function getLatestTxHash(address: string): Promise<string | null> {
+/**
+ * Find the incoming payment transaction on an escrow address.
+ * Searches recent transactions for one with a non-empty source (incoming)
+ * and sufficient value (at least 80% of expected to handle fee deductions).
+ */
+async function getLatestIncomingTxHash(address: string, minAmountNano?: bigint): Promise<string | null> {
   try {
-    const url = `${TON_ENDPOINT}/getTransactions?address=${address}&limit=1`;
+    const url = `${TON_ENDPOINT}/getTransactions?address=${address}&limit=10`;
     const headers: Record<string, string> = {};
     if (config.TON_API_KEY) {
       headers['X-API-Key'] = config.TON_API_KEY;
     }
     const response = await fetch(url, { headers });
-    const data = await response.json() as { ok: boolean; result: Array<{ transaction_id: { hash: string } }> };
+    const data = await response.json() as {
+      ok: boolean;
+      result: Array<{
+        transaction_id: { hash: string };
+        in_msg: { value: string; source: string };
+      }>;
+    };
 
-    if (data.ok && data.result.length > 0) {
-      return data.result[0].transaction_id.hash;
+    if (!data.ok || data.result.length === 0) return null;
+
+    // Find first incoming transaction with sufficient value
+    const threshold = minAmountNano
+      ? (minAmountNano * 80n) / 100n // 80% of expected amount
+      : 0n;
+
+    for (const tx of data.result) {
+      const inValue = BigInt(tx.in_msg?.value || '0');
+      const hasSource = !!tx.in_msg?.source;
+      if (hasSource && inValue >= threshold) {
+        return tx.transaction_id.hash;
+      }
     }
+
     return null;
   } catch {
     return null;
