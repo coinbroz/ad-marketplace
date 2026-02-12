@@ -44,9 +44,10 @@ export function PaymentPage() {
   if (!deal || !escrow) return <Placeholder description="Loading payment..." />;
 
   const amountNano = Math.round(deal.priceInTon * 1e9).toString();
+  const isTestnet = appConfig?.tonNetwork !== 'mainnet';
   const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}`;
-  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}`;
-  const network = appConfig?.tonNetwork === 'mainnet' ? CHAIN.MAINNET : CHAIN.TESTNET;
+  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}`;
+  const network = isTestnet ? CHAIN.TESTNET : CHAIN.MAINNET;
 
   const copyAddress = () => {
     if (escrow.address) {
@@ -125,7 +126,15 @@ export function PaymentPage() {
             size="l"
             stretched
             mode="outline"
-            onClick={() => window.open(tonkeeperUrl, '_blank')}
+            onClick={() => {
+              // Use Telegram openLink for better deeplink handling from WebView
+              const tg = window.Telegram?.WebApp as Record<string, unknown> | undefined;
+              if (typeof tg?.openLink === 'function') {
+                (tg.openLink as (url: string) => void)(tonkeeperUrl);
+              } else {
+                window.open(tonkeeperUrl, '_blank');
+              }
+            }}
           >
             Open in Tonkeeper
           </Button>
