@@ -24,6 +24,16 @@ if (tg) {
   tg.expand();
 }
 
+// Fix: scroll focused input into view when mobile keyboard opens
+document.addEventListener('focusin', (e) => {
+  const target = e.target as HTMLElement;
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+    setTimeout(() => {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 300);
+  }
+});
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <TonConnectUIProvider manifestUrl={manifestUrl}>
