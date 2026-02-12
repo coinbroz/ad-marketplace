@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Section, Cell, Badge, Button, Placeholder, Input } from '@telegram-apps/telegram-ui';
-import { getCampaign, applyCampaign, updateCampaign, getMe } from '../api/client';
+import { getCampaign, applyCampaign, updateCampaign, cancelCampaign, getMe } from '../api/client';
 import { LanguageInput } from '../components/LanguageInput';
 import type { User } from '../types';
 
@@ -182,9 +182,34 @@ export function CampaignPage({ user }: Props) {
       {/* Owner actions */}
       {isOwner && campaign.status === 'ACTIVE' && (
         <Section>
-          <div style={{ padding: '8px 16px' }}>
+          <div style={{ display: 'flex', gap: 8, padding: '8px 16px' }}>
             <Button size="l" stretched mode="outline" onClick={startEditing}>
               Edit Campaign
+            </Button>
+            <Button
+              size="l"
+              stretched
+              mode="outline"
+              style={{ color: '#FF3B30', borderColor: '#FF3B30' }}
+              onClick={async () => {
+                const confirmed = await new Promise<boolean>((resolve) => {
+                  window.Telegram?.WebApp?.showConfirm?.(
+                    'Cancel this campaign? Active deals will not be affected.',
+                    (ok) => resolve(ok),
+                  );
+                });
+                if (!confirmed) return;
+                try {
+                  await cancelCampaign(campaign.id);
+                  queryClient.invalidateQueries({ queryKey: ['campaign', id] });
+                  queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+                  window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+                } catch (err) {
+                  window.Telegram?.WebApp?.showAlert?.(err instanceof Error ? err.message : 'Failed to cancel');
+                }
+              }}
+            >
+              Cancel
             </Button>
           </div>
         </Section>

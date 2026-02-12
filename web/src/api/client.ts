@@ -179,6 +179,10 @@ export function updateCampaign(id: number, data: {
   });
 }
 
+export function cancelCampaign(id: number) {
+  return api<Campaign>(`/api/campaigns/${id}`, { method: 'DELETE' });
+}
+
 export function applyCampaign(campaignId: number, channelId: number, message?: string) {
   return api<Deal>(`/api/campaigns/${campaignId}/apply`, {
     method: 'POST',
