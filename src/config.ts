@@ -69,7 +69,7 @@ export const DEAL_TIMEOUTS: Record<string, number> = {
 export const POST_VERIFICATION_HOURS = 24;
 
 // Worker intervals (milliseconds)
-export const PAYMENT_MONITOR_INTERVAL = 30_000;     // 30 seconds
+export const PAYMENT_MONITOR_INTERVAL = 60_000;     // 60 seconds
 export const POST_VERIFIER_INTERVAL = 5 * 60_000;   // 5 minutes
 export const DEAL_TIMEOUT_INTERVAL = 5 * 60_000;    // 5 minutes
 export const STATS_UPDATER_INTERVAL = 6 * 3600_000; // 6 hours

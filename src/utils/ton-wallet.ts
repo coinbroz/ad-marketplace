@@ -196,28 +196,41 @@ export async function sendFromEscrow(params: {
     seqno = 0;
   }
 
-  // Send transfer (includes stateInit for auto-deploy when seqno === 0)
-  try {
-    await contract.sendTransfer({
-      seqno,
-      secretKey,
-      messages: [
-        internal({
-          to: toAddress,
-          value: amount,
-          bounce: false,
-        }),
-      ],
-    });
-    console.log(`[sendFromEscrow] sendTransfer succeeded from ${escrowAddress} → ${toAddress}`);
-  } catch (err) {
-    console.error(`[sendFromEscrow] sendTransfer FAILED:`, err);
-    throw err; // Re-throw so caller sees the error
+  // Send transfer with retry (includes stateInit for auto-deploy when seqno === 0)
+  const maxRetries = 3;
+  for (let retry = 0; retry < maxRetries; retry++) {
+    try {
+      if (retry > 0) {
+        const delay = retry * 3000; // 3s, 6s
+        console.log(`[sendFromEscrow] Retry ${retry}/${maxRetries}, waiting ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+      await contract.sendTransfer({
+        seqno,
+        secretKey,
+        messages: [
+          internal({
+            to: toAddress,
+            value: amount,
+            bounce: false,
+          }),
+        ],
+      });
+      console.log(`[sendFromEscrow] sendTransfer succeeded from ${escrowAddress} → ${toAddress}`);
+      break;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[sendFromEscrow] sendTransfer attempt ${retry + 1} FAILED:`, errMsg);
+      if (errMsg.includes('429') && retry < maxRetries - 1) {
+        continue; // Rate limited — retry
+      }
+      throw err;
+    }
   }
 
   // Wait for transaction confirmation (poll seqno change)
-  for (let attempt = 0; attempt < 20; attempt++) {
-    await new Promise(r => setTimeout(r, 1500));
+  for (let attempt = 0; attempt < 15; attempt++) {
+    await new Promise(r => setTimeout(r, 3000));
     try {
       const newSeqno = await contract.getSeqno();
       if (newSeqno > seqno) {
