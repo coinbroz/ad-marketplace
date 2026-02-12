@@ -1,9 +1,7 @@
-import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
 import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
-import { CHAIN } from '@tonconnect/sdk';
 import { QRCodeSVG } from 'qrcode.react';
 import { getDeal, getEscrowInfo, getAppConfig } from '../api/client';
 
@@ -13,7 +11,6 @@ export function PaymentPage() {
   const dealId = parseInt(id!, 10);
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
-  const [sending, setSending] = useState(false);
 
   const { data: deal } = useQuery({
     queryKey: ['deal', dealId],
@@ -47,7 +44,6 @@ export function PaymentPage() {
   const isTestnet = appConfig?.tonNetwork !== 'mainnet';
   const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}`;
   const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${amountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}`;
-  const network = isTestnet ? CHAIN.TESTNET : CHAIN.MAINNET;
 
   const copyAddress = () => {
     if (escrow.address) {
@@ -57,49 +53,24 @@ export function PaymentPage() {
     }
   };
 
-  const handleTonConnect = async () => {
+  const openInWallet = () => {
+    const tg = window.Telegram?.WebApp as Record<string, unknown> | undefined;
+    if (tg && typeof tg.openLink === 'function') {
+      (tg.openLink as (url: string) => void)(tonkeeperUrl);
+    } else {
+      window.open(tonkeeperUrl, '_blank');
+    }
+  };
+
+  const handlePay = async () => {
     if (!wallet) {
       await tonConnectUI.openModal();
       return;
     }
 
-    // Check network mismatch before sending
-    const walletChain = wallet.account.chain;
-    if (walletChain && walletChain !== network) {
-      const expected = isTestnet ? 'testnet' : 'mainnet';
-      window.Telegram?.WebApp?.showAlert?.(
-        `Your wallet is connected to a different network. Please disconnect and reconnect on ${expected}, or use "Open in Tonkeeper" button.`,
-      );
-      return;
-    }
-
-    setSending(true);
-    try {
-      await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 300,
-        messages: [
-          {
-            address: escrow.address!,
-            amount: amountNano,
-          },
-        ],
-      });
-      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
-    } catch (err) {
-      const msg = (err as Error).message || '';
-      if (msg.includes('Interrupted') || msg.includes('Cancelled') || msg.includes('cancel')) {
-        // User cancelled — do nothing
-      } else if (msg.includes('not sent') || msg.includes('TON_CONNECT_SDK_ERROR')) {
-        // Bridge timeout or connection issue — suggest deeplink fallback
-        window.Telegram?.WebApp?.showAlert?.(
-          'Could not send via TON Connect. Please tap "Open in Tonkeeper" to complete the payment directly.',
-        );
-      } else {
-        window.Telegram?.WebApp?.showAlert?.(`Payment error: ${msg}`);
-      }
-    } finally {
-      setSending(false);
-    }
+    // In Telegram WebView, TON Connect bridge is unreliable —
+    // open wallet directly via deeplink (same as "Open in Tonkeeper")
+    openInWallet();
   };
 
   return (
@@ -150,8 +121,7 @@ export function PaymentPage() {
           <Button
             size="l"
             stretched
-            onClick={handleTonConnect}
-            loading={sending}
+            onClick={handlePay}
           >
             {wallet ? `Pay ${deal.priceInTon} TON` : 'Connect Wallet & Pay'}
           </Button>
@@ -168,23 +138,6 @@ export function PaymentPage() {
             </Button>
           </div>
         )}
-        <div style={{ padding: '0 16px 8px' }}>
-          <Button
-            size="l"
-            stretched
-            mode="outline"
-            onClick={() => {
-              const tg = window.Telegram?.WebApp as Record<string, unknown> | undefined;
-              if (typeof tg?.openLink === 'function') {
-                (tg.openLink as (url: string) => void)(tonkeeperUrl);
-              } else {
-                window.open(tonkeeperUrl, '_blank');
-              }
-            }}
-          >
-            Open in Tonkeeper
-          </Button>
-        </div>
       </Section>
 
       <Section header="Escrow Address">
