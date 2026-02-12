@@ -65,8 +65,10 @@ export function ProfilePage({ user }: Props) {
         {me.tonWalletAddress && !editingWallet ? (
           <>
             <Cell subtitle="Connected wallet">
-              <span style={{ fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                {me.tonWalletAddress}
+              <span style={{ fontSize: 13, fontFamily: 'monospace' }}>
+                {me.tonWalletAddress && me.tonWalletAddress.length > 20
+                  ? `${me.tonWalletAddress.slice(0, 10)}...${me.tonWalletAddress.slice(-10)}`
+                  : me.tonWalletAddress}
               </span>
             </Cell>
             <div style={{ padding: '4px 16px 8px' }}>
