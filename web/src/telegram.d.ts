@@ -34,6 +34,8 @@ interface TelegramWebApp {
     notificationOccurred: (type: 'error' | 'success' | 'warning') => void;
     selectionChanged: () => void;
   };
+  openLink?: (url: string) => void;
+  openTelegramLink?: (url: string) => void;
   showAlert?: (message: string, callback?: () => void) => void;
   showConfirm?: (message: string, callback?: (confirmed: boolean) => void) => void;
   showPopup?: (params: {

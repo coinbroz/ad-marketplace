@@ -6,6 +6,10 @@ import { dealRoutes } from './routes/deals.js';
 import { requireAuth } from './middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config.js';
+import { bot } from '../bot/index.js';
+
+// Cache bot username (resolved on first request)
+let botUsername: string | null = null;
 
 export async function registerRoutes(app: FastifyInstance) {
   // Health check (no auth)
@@ -14,10 +18,19 @@ export async function registerRoutes(app: FastifyInstance) {
     timestamp: new Date().toISOString(),
   }));
 
-  // App config (public, needed by frontend for TON network)
-  app.get('/api/config', async () => ({
-    tonNetwork: config.TON_NETWORK,
-  }));
+  // App config (public, needed by frontend for TON network + bot deep links)
+  app.get('/api/config', async () => {
+    if (!botUsername) {
+      try {
+        const me = await bot.api.getMe();
+        botUsername = me.username;
+      } catch { /* fallback below */ }
+    }
+    return {
+      tonNetwork: config.TON_NETWORK,
+      botUsername: botUsername || null,
+    };
+  });
 
   // Auth routes (no auth required)
   await app.register(authRoutes);

@@ -6,6 +6,7 @@ import { Input } from '@telegram-apps/telegram-ui';
 import {
   getDeal,
   getEscrowInfo,
+  getAppConfig,
   acceptDeal,
   rejectDeal,
   cancelDeal,
@@ -89,6 +90,25 @@ export function DealPage({ user }: Props) {
     queryKey: ['events', dealId],
     queryFn: () => getDealEvents(dealId),
   });
+
+  const { data: appConfig } = useQuery({
+    queryKey: ['appConfig'],
+    queryFn: getAppConfig,
+    staleTime: Infinity,
+  });
+
+  /** Open the bot with a specific command via deep link */
+  const openBotCommand = (command: string) => {
+    const username = appConfig?.botUsername;
+    if (!username) return;
+    const url = `https://t.me/${username}?start=${command}`;
+    const tg = window.Telegram?.WebApp;
+    if (tg?.openTelegramLink) {
+      tg.openTelegramLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  };
 
   const mutate = (fn: () => Promise<unknown>) => ({
     mutationFn: fn,
@@ -232,7 +252,12 @@ export function DealPage({ user }: Props) {
           fontSize: 14,
           color: 'var(--tg-theme-hint-color, #999)',
         }}>
-          Payment confirmed! Now send your ad brief and materials: use /submitbrief in the bot.
+          Payment confirmed! Now send your ad brief and materials.
+          <div style={{ marginTop: 8 }}>
+            <Button size="s" stretched onClick={() => openBotCommand('submitbrief')}>
+              📋 Submit Brief
+            </Button>
+          </div>
         </div>
       )}
 
@@ -271,7 +296,12 @@ export function DealPage({ user }: Props) {
           fontSize: 14,
           color: 'var(--tg-theme-hint-color, #999)',
         }}>
-          Brief received! Create the ad post: send /submitcreative to the bot.
+          Brief received! Create the ad post.
+          <div style={{ marginTop: 8 }}>
+            <Button size="s" stretched onClick={() => openBotCommand('submitcreative')}>
+              🎨 Submit Creative
+            </Button>
+          </div>
         </div>
       )}
 
@@ -297,7 +327,12 @@ export function DealPage({ user }: Props) {
           fontSize: 14,
           color: 'var(--tg-theme-hint-color, #999)',
         }}>
-          Creative approved! Use the bot to schedule posting: send /schedulepost to @channelescrow_bot
+          Creative approved! Schedule the post in your channel.
+          <div style={{ marginTop: 8 }}>
+            <Button size="s" stretched onClick={() => openBotCommand('schedulepost')}>
+              📅 Schedule Post
+            </Button>
+          </div>
         </div>
       )}
 
@@ -310,7 +345,12 @@ export function DealPage({ user }: Props) {
           fontSize: 14,
           color: 'var(--tg-theme-hint-color, #999)',
         }}>
-          Post scheduled{deal.scheduledAt ? ` for ${new Date(deal.scheduledAt).toISOString().replace('T', ' ').slice(0, 16)} UTC` : ''}. To reschedule, send /schedulepost to the bot.
+          Post scheduled{deal.scheduledAt ? ` for ${new Date(deal.scheduledAt).toISOString().replace('T', ' ').slice(0, 16)} UTC` : ''}.
+          <div style={{ marginTop: 8 }}>
+            <Button size="s" mode="outline" stretched onClick={() => openBotCommand('schedulepost')}>
+              📅 Reschedule
+            </Button>
+          </div>
         </div>
       )}
 

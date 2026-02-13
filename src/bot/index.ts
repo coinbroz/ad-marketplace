@@ -47,6 +47,18 @@ bot.catch((err) => {
 // ── Commands ───────────────────────────────────────────────
 
 bot.command('start', async (ctx) => {
+  // Deep link support: /start submitbrief → enter submitBrief conversation
+  const param = ctx.match?.trim().toLowerCase();
+  const conversationMap: Record<string, string> = {
+    submitbrief: 'submitBrief',
+    submitcreative: 'submitCreative',
+    schedulepost: 'schedulePost',
+  };
+  if (param && conversationMap[param]) {
+    await ctx.conversation.enter(conversationMap[param]);
+    return;
+  }
+
   const webAppUrl = config.WEBAPP_URL;
   await ctx.reply(
     '👋 Welcome to Ad Marketplace!\n\n' +
