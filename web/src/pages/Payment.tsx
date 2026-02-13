@@ -84,8 +84,25 @@ export function PaymentPage() {
       return;
     }
 
-    // In Telegram WebView, TON Connect bridge is unreliable —
-    // open wallet directly via deeplink
+    // Try TonConnect sendTransaction first (proper method, handles bounce correctly).
+    // Fall back to deeplink if bridge is unreliable in Telegram WebView.
+    try {
+      setPaymentInitiated(true);
+      await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 300, // 5 min
+        messages: [
+          {
+            address: escrow.address!,
+            amount: payAmountNano,
+          },
+        ],
+      });
+      return; // Transaction sent via TonConnect
+    } catch (err) {
+      console.warn('TonConnect sendTransaction failed, falling back to deeplink:', err);
+    }
+
+    // Fallback: open wallet via deeplink
     openInWallet();
   };
 

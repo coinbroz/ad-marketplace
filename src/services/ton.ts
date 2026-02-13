@@ -8,7 +8,7 @@ import {
   fromNano,
   toNano,
 } from '../utils/ton-wallet.js';
-import { config, GAS_RESERVE_TON, TON_ENDPOINT } from '../config.js';
+import { config, GAS_RESERVE_TON, TON_ENDPOINT, PAYMENT_TOLERANCE_NANOTON } from '../config.js';
 import { transitionDeal } from './deals.js';
 import { notifyUser, formatNotification } from './telegram.js';
 
@@ -84,7 +84,8 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
   const balance = await getWalletBalance(deal.escrowAddress);
   const requiredAmount = toNano(deal.priceInTon);
 
-  if (balance >= requiredAmount) {
+  // Accept payment within tolerance (handles bounce fees on undeployed wallets)
+  if (balance >= requiredAmount - PAYMENT_TOLERANCE_NANOTON) {
     // Payment received — get incoming transaction hash
     const txHash = await getLatestIncomingTxHash(deal.escrowAddress, requiredAmount);
 
@@ -137,8 +138,8 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
     return true;
   }
 
-  // Check partial payment (real underpayment, not within tolerance)
-  if (balance > 0n) {
+  // Check partial payment (only if significantly short, not within tolerance)
+  if (balance > 0n && balance < requiredAmount - PAYMENT_TOLERANCE_NANOTON) {
     const receivedTon = formatTon(fromNano(balance));
     const requiredTon = formatTon(deal.priceInTon);
     const remainingNano = requiredAmount - balance;
@@ -573,8 +574,16 @@ export async function getEscrowInfo(dealId: number) {
   if (deal.escrowAddress) {
     try {
       const rawBalance = await getWalletBalance(deal.escrowAddress);
-      // Round to 4 decimals for clean display (avoids 0.509999999)
-      balance = parseFloat(fromNano(rawBalance).toFixed(4));
+      const rawTon = fromNano(rawBalance);
+      // If balance is within tolerance of deal price, show the deal price (clean number).
+      // This avoids showing 0.499999999 when user sent exactly 0.5 but lost 1 nanoton to bounce.
+      const required = deal.priceInTon;
+      const diff = Math.abs(rawTon - required);
+      if (diff < 0.001 && rawTon > 0) {
+        balance = required;
+      } else {
+        balance = parseFloat(rawTon.toFixed(4));
+      }
     } catch {
       // Address might not exist yet
     }

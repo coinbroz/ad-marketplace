@@ -76,3 +76,7 @@ export const STATS_UPDATER_INTERVAL = 6 * 3600_000; // 6 hours
 
 // Gas reserve for escrow wallet transactions
 export const GAS_RESERVE_TON = 0.05;
+
+// Payment tolerance: accept balance within this margin as "full payment".
+// Covers bounce fees on fresh (undeployed) escrow wallets (~1 nanoton).
+export const PAYMENT_TOLERANCE_NANOTON = 1_000_000n; // 0.001 TON
