@@ -87,6 +87,43 @@ export async function getChatAdministrators(chatId: string | number) {
 }
 
 /**
+ * Format a consistent deal notification message.
+ * All bot notifications use this for uniform visual width.
+ */
+export function formatNotification(params: {
+  emoji: string;
+  title: string;
+  dealId: number;
+  channel?: string;
+  channelLink?: string;
+  price?: number | string;
+  lines?: string[];
+  hint?: string;
+}): string {
+  const sep = '━━━━━━━━━━━━━━━━━━━━━';
+  const ch = params.channelLink || params.channel || '';
+  const parts: string[] = [
+    sep,
+    `${params.emoji}  <b>${params.title}</b>`,
+    sep,
+    '',
+    `<b>Deal #${params.dealId}</b>${ch ? ` · ${ch}` : ''}`,
+  ];
+  if (params.price !== undefined) {
+    parts.push(`💎 ${params.price} TON`);
+  }
+  if (params.lines?.length) {
+    parts.push('');
+    parts.push(...params.lines);
+  }
+  if (params.hint) {
+    parts.push('');
+    parts.push(params.hint);
+  }
+  return parts.join('\n');
+}
+
+/**
  * Send a notification message to a user via the bot.
  */
 export async function notifyUser(telegramId: bigint, text: string, extra?: object) {

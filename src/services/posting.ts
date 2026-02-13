@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { bot } from '../bot/index.js';
 import { prisma } from '../lib/prisma.js';
 import { transitionDeal } from './deals.js';
-import { notifyUser } from './telegram.js';
+import { notifyUser, formatNotification } from './telegram.js';
 import { isUserAdmin, isBotAdmin } from './telegram.js';
 
 /**
@@ -109,7 +109,12 @@ export async function publishPost(dealId: number) {
     ? `https://t.me/${deal.channel.username}/${messageId}`
     : `Message #${messageId}`;
 
-  const publishMsg = `📢 <b>Post published!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\n\n🔗 ${postUrl}\n\nThe post will be monitored for 24 hours. Funds will be released after verification.`;
+  const publishMsg = formatNotification({
+    emoji: '📢', title: 'Post published',
+    dealId, channel: deal.channel.title,
+    lines: [`🔗 ${postUrl}`],
+    hint: 'The post will be monitored for 24 hours. Funds released after verification.',
+  });
 
   await Promise.all([
     notifyUser(deal.advertiser.telegramId, publishMsg),

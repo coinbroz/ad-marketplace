@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { bot } from '../bot/index.js';
 import { transitionDeal } from '../services/deals.js';
 import { releaseFunds } from '../services/ton.js';
-import { notifyUser } from '../services/telegram.js';
+import { notifyUser, formatNotification } from '../services/telegram.js';
 import { POST_VERIFIER_INTERVAL, POST_VERIFICATION_HOURS } from '../config.js';
 
 const QUEUE_NAME = 'post-verifier';
@@ -60,7 +60,11 @@ export const postVerifierWorker = new Worker(
           });
 
           // Notify both parties
-          const deleteMsg = `🚨 <b>Post deleted!</b>\n\nDeal #${deal.id}\nChannel: ${deal.channel.title}\n\nThe ad post has been deleted from the channel before the verification period ended. Funds are being held.`;
+          const deleteMsg = formatNotification({
+            emoji: '🚨', title: 'Post deleted',
+            dealId: deal.id, channel: deal.channel.title,
+            hint: 'The ad post was deleted before verification ended. Funds are being held.',
+          });
 
           await Promise.all([
             notifyUser(deal.advertiser.telegramId, deleteMsg),
@@ -90,7 +94,11 @@ export const postVerifierWorker = new Worker(
             // Notify about payout failure
             await notifyUser(
               deal.channelOwner.telegramId,
-              `⚠️ <b>Payout processing</b>\n\nDeal #${deal.id}\nYour post has been verified! Payout is being processed. If you don't receive funds within 1 hour, please contact support.`,
+              formatNotification({
+                emoji: '⚠️', title: 'Payout processing',
+                dealId: deal.id, channel: deal.channel.title,
+                hint: 'Post verified! Payout is being processed. Contact support if not received within 1 hour.',
+              }),
             );
           }
         }

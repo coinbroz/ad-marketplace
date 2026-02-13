@@ -2,7 +2,7 @@ import type { Context } from 'grammy';
 import type { Conversation } from '@grammyjs/conversations';
 import { prisma } from '../../lib/prisma.js';
 import { submitCreative } from '../../services/deals.js';
-import { notifyUser } from '../../services/telegram.js';
+import { notifyUser, formatNotification } from '../../services/telegram.js';
 
 /**
  * Grammy conversation: channel owner submits creative for a deal.
@@ -198,9 +198,11 @@ export async function submitCreativeConversation(
     );
 
     await ctx.reply(
-      `✅ <b>Creative submitted for Deal #${dealId}!</b>\n\n` +
-      `Channel: ${selectedDeal.channel.title}\n` +
-      `The advertiser will review your submission.`,
+      formatNotification({
+        emoji: '✅', title: 'Creative submitted',
+        dealId, channel: selectedDeal.channel.title,
+        hint: 'The advertiser will review your submission.',
+      }),
       { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } },
     );
 
@@ -224,19 +226,25 @@ export async function submitCreativeConversation(
         // Text-only creative
         await notifyUser(
           deal.advertiser.telegramId,
-          `📝 <b>Creative for Deal #${dealId}</b>\n` +
-          `Channel: ${deal.channel.title}\n\n` +
-          `<b>Post preview:</b>\n${creativeText}`,
+          formatNotification({
+            emoji: '📝', title: 'Creative preview',
+            dealId, channel: deal.channel.title,
+            lines: [`<b>Post preview:</b>`, creativeText],
+          }),
         );
       }
 
       // Follow-up with clear action instructions
       await notifyUser(
         deal.advertiser.telegramId,
-        `👆 This is how the ad post will look in the channel.\n\n` +
-        `Open the Mini App → My Deals → Deal #${dealId} to:\n` +
-        `✅ <b>Approve Creative</b> — post goes to the channel\n` +
-        `✏️ <b>Request Edits</b> — send feedback to the channel owner`,
+        formatNotification({
+          emoji: '👆', title: 'Review creative',
+          dealId, channel: deal.channel.title,
+          lines: [
+            `✅ <b>Approve</b> — post goes to the channel`,
+            `✏️ <b>Request Edits</b> — send feedback`,
+          ],
+        }),
         {
           reply_markup: {
             inline_keyboard: [

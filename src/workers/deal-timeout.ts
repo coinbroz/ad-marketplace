@@ -3,7 +3,7 @@ import { redis } from '../lib/redis.js';
 import { prisma } from '../lib/prisma.js';
 import { transitionDeal } from '../services/deals.js';
 import { refundFunds } from '../services/ton.js';
-import { notifyUser } from '../services/telegram.js';
+import { notifyUser, formatNotification } from '../services/telegram.js';
 import { DEAL_TIMEOUT_INTERVAL } from '../config.js';
 
 const QUEUE_NAME = 'deal-timeout';
@@ -54,7 +54,11 @@ export const dealTimeoutWorker = new Worker(
           });
 
           // Notify both parties
-          const timeoutMsg = `⏰ <b>Deal expired</b>\n\nDeal #${deal.id}\nChannel: ${deal.channel.title}\n\nThe deal has been automatically ${targetStatus.toLowerCase()} due to inactivity.`;
+          const timeoutMsg = formatNotification({
+            emoji: '⏰', title: 'Deal expired',
+            dealId: deal.id, channel: deal.channel.title,
+            hint: `The deal has been automatically ${targetStatus.toLowerCase()} due to inactivity.`,
+          });
 
           await Promise.all([
             notifyUser(deal.advertiser.telegramId, timeoutMsg),

@@ -10,7 +10,7 @@ import {
 } from '../utils/ton-wallet.js';
 import { config, GAS_RESERVE_TON, TON_ENDPOINT } from '../config.js';
 import { transitionDeal } from './deals.js';
-import { notifyUser } from './telegram.js';
+import { notifyUser, formatNotification } from './telegram.js';
 
 /**
  * Format TON amounts to a clean string (no scientific notation, trim trailing zeros).
@@ -116,8 +116,18 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
     const addrLine = `\n🔗 <a href="${addressExplorerUrl(displayAddr)}">View escrow on TON Explorer</a>`;
     // Show the deal price (clean amount), not raw balance
     const amountStr = formatTon(deal.priceInTon);
-    const advertiserMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${amountStr} TON${addrLine}\n\n📋 Now send your ad brief and materials: use /submitbrief`;
-    const ownerMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${amountStr} TON${addrLine}\n\n⏳ Waiting for the advertiser to send their ad brief.`;
+    const advertiserMsg = formatNotification({
+      emoji: '💰', title: 'Payment received',
+      dealId, channel: deal.channel.title, price: amountStr,
+      lines: [addrLine],
+      hint: '📋 Now send your ad brief: use /submitbrief',
+    });
+    const ownerMsg = formatNotification({
+      emoji: '💰', title: 'Payment received',
+      dealId, channel: deal.channel.title, price: amountStr,
+      lines: [addrLine],
+      hint: '⏳ Waiting for the advertiser to send their ad brief.',
+    });
 
     await Promise.all([
       notifyUser(deal.advertiser.telegramId, advertiserMsg),
@@ -145,7 +155,15 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
 
       await notifyUser(
         deal.advertiser.telegramId,
-        `⚠️ <b>Partial payment detected</b>\n\nDeal #${dealId}\nReceived: ${receivedTon} TON\nRequired: ${requiredTon} TON\n\nPlease send the remaining <b>${remainingTon} TON</b> to complete the payment.`,
+        formatNotification({
+          emoji: '⚠️', title: 'Partial payment detected',
+          dealId, channel: deal.channel.title,
+          lines: [
+            `Received: ${receivedTon} TON`,
+            `Required: ${requiredTon} TON`,
+          ],
+          hint: `Please send the remaining <b>${remainingTon} TON</b> to complete.`,
+        }),
       );
     }
     // else: same balance, within 10min cooldown — skip notification
@@ -257,7 +275,19 @@ export async function releaseFunds(dealId: number): Promise<string | null> {
   const feeLine = feeAmount > 0n
     ? `\n💼 Platform fee (${feePercent}%): −${formatTon(fromNano(feeAmount))} TON`
     : '';
-  const payoutMsg = `✅ <b>Payout completed!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\n\n💰 Deal price: ${dealPriceStr} TON${feeLine}\n⛽ Gas reserve: −${gasReserveStr} TON\n📤 Sent from escrow: ${sentStr} TON\n\n<i>Blockchain fee (~0.004 TON) is deducted by the network.</i>${txLine}`;
+  const payoutMsg = formatNotification({
+    emoji: '✅', title: 'Payout completed',
+    dealId, channel: deal.channel.title,
+    lines: [
+      `💰 Deal price: ${dealPriceStr} TON`,
+      ...(feeLine ? [feeLine] : []),
+      `⛽ Gas reserve: −${gasReserveStr} TON`,
+      `📤 Sent: ${sentStr} TON`,
+      '',
+      `<i>Blockchain fee (~0.004 TON) deducted by the network.</i>`,
+      ...(txLine ? [txLine] : []),
+    ],
+  });
 
   await Promise.all([
     notifyUser(deal.channelOwner.telegramId, payoutMsg),
@@ -359,25 +389,48 @@ export async function refundFunds(dealId: number): Promise<string | null> {
   const hasRealAddress = isValidTonAddress(refundToAddress);
   const hasRealTx = isRealTxHash(txHash);
   const txLine = hasRealTx
-    ? `\n🔗 <a href="${txExplorerUrl(txHash)}">View transaction on TON Explorer</a>`
+    ? `🔗 <a href="${txExplorerUrl(txHash)}">View transaction on TON Explorer</a>`
     : '';
 
   const dealPriceStr = formatTon(deal.priceInTon);
   const gasReserveStr = formatTon(GAS_RESERVE_TON);
-  const breakdownLines = `\n\n💰 Deal price: ${dealPriceStr} TON\n⛽ Gas reserve: −${gasReserveStr} TON\n📤 Sent from escrow: ${refundTonStr} TON\n\n<i>Blockchain fee (~0.004 TON) is deducted by the network.</i>`;
+  const breakdownLines = [
+    `💰 Deal price: ${dealPriceStr} TON`,
+    `⛽ Gas reserve: −${gasReserveStr} TON`,
+    `📤 Sent: ${refundTonStr} TON`,
+    '',
+    `<i>Blockchain fee (~0.004 TON) deducted by the network.</i>`,
+  ];
 
-  let refundMsg: string;
+  let refundTitle: string;
+  let refundHint: string;
   if (hasRealAddress && hasRealTx) {
-    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}${breakdownLines}\n\nTo: <code>${refundToAddress}</code>${txLine}`;
+    refundTitle = 'Refund sent';
+    refundHint = `To: <code>${refundToAddress}</code>\n${txLine}`;
   } else if (hasRealAddress) {
-    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}${breakdownLines}\n\nTo: <code>${refundToAddress}</code>\n\n⏳ Transaction is being processed on the blockchain.`;
+    refundTitle = 'Refund sent';
+    refundHint = `To: <code>${refundToAddress}</code>\n⏳ Processing on the blockchain.`;
   } else {
-    refundMsg = `🔄 <b>Refund initiated</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}${breakdownLines}\n\n📝 Please open the deal in Mini App and enter your refund wallet address.`;
+    refundTitle = 'Refund initiated';
+    refundHint = '📝 Open the deal in Mini App and enter your refund wallet address.';
   }
+
+  const refundMsg = formatNotification({
+    emoji: '🔄', title: refundTitle,
+    dealId, channel: deal.channel.title,
+    lines: breakdownLines,
+    hint: refundHint,
+  });
+
+  const ownerRefundMsg = formatNotification({
+    emoji: '🔄', title: 'Refund processed',
+    dealId, channel: deal.channel.title, price: refundTonStr,
+    lines: txLine ? [txLine] : [],
+  });
 
   await Promise.all([
     notifyUser(deal.advertiser.telegramId, refundMsg),
-    notifyUser(deal.channelOwner.telegramId, `🔄 <b>Refund processed</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${refundTonStr} TON${txLine}`),
+    notifyUser(deal.channelOwner.telegramId, ownerRefundMsg),
   ]);
 
   return txHash;
@@ -467,13 +520,25 @@ export async function executePendingRefund(dealId: number): Promise<string | nul
       },
     });
 
-    const txLine = `\n🔗 <a href="${txExplorerUrl(onChainHash)}">View transaction on TON Explorer</a>`;
+    const txLine = `🔗 <a href="${txExplorerUrl(onChainHash)}">View transaction on TON Explorer</a>`;
     const refundStr = formatTon(fromNano(refundAmount));
     const dealPriceStr = formatTon(deal.priceInTon);
     const gasReserveStr = formatTon(GAS_RESERVE_TON);
     await notifyUser(
       deal.advertiser.telegramId,
-      `✅ <b>Refund sent!</b>\n\nDeal #${dealId}\n\n💰 Deal price: ${dealPriceStr} TON\n⛽ Gas reserve: −${gasReserveStr} TON\n📤 Sent from escrow: ${refundStr} TON\n\n<i>Blockchain fee (~0.004 TON) is deducted by the network.</i>\n\nTo: <code>${refundToAddress}</code>${txLine}`,
+      formatNotification({
+        emoji: '✅', title: 'Refund sent',
+        dealId, channel: deal.channel.title,
+        lines: [
+          `💰 Deal price: ${dealPriceStr} TON`,
+          `⛽ Gas reserve: −${gasReserveStr} TON`,
+          `📤 Sent: ${refundStr} TON`,
+          '',
+          `<i>Blockchain fee (~0.004 TON) deducted by the network.</i>`,
+          txLine,
+        ],
+        hint: `To: <code>${refundToAddress}</code>`,
+      }),
     );
 
   } else {

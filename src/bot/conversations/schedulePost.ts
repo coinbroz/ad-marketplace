@@ -3,7 +3,7 @@ import type { Conversation } from '@grammyjs/conversations';
 import { prisma } from '../../lib/prisma.js';
 import { scheduleDeal, transitionDeal } from '../../services/deals.js';
 import { publishPost } from '../../services/posting.js';
-import { notifyUser } from '../../services/telegram.js';
+import { notifyUser, formatNotification } from '../../services/telegram.js';
 
 /**
  * Grammy conversation: schedule or immediately publish an approved post.
@@ -137,12 +137,14 @@ export async function schedulePostConversation(
       await conversation.external(() => scheduleDeal(dealId, scheduledAt));
 
       const actionWord = isReschedule ? 'rescheduled' : 'scheduled';
+      const scheduleTime = scheduledAt.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
       await ctx.reply(
-        `📅 <b>Post ${actionWord}!</b>\n\n` +
-        `Deal #${dealId}\n` +
-        `Channel: ${selectedDeal.channel.title}\n` +
-        `Scheduled for: ${scheduledAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n\n` +
-        `The post will be automatically published at the scheduled time.`,
+        formatNotification({
+          emoji: '📅', title: `Post ${actionWord}`,
+          dealId, channel: selectedDeal.channel.title,
+          lines: [`Scheduled for: ${scheduleTime}`],
+          hint: 'The post will be automatically published at the scheduled time.',
+        }),
         { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } },
       );
 
@@ -150,10 +152,11 @@ export async function schedulePostConversation(
       await conversation.external(() =>
         notifyUser(
           selectedDeal.advertiser.telegramId,
-          `📅 <b>Post ${actionWord}</b>\n\n` +
-          `Deal #${dealId}\n` +
-          `Channel: ${selectedDeal.channel.title}\n` +
-          `Scheduled for: ${scheduledAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`,
+          formatNotification({
+            emoji: '📅', title: `Post ${actionWord}`,
+            dealId, channel: selectedDeal.channel.title,
+            lines: [`Scheduled for: ${scheduleTime}`],
+          }),
         ),
       );
     } catch (err: unknown) {

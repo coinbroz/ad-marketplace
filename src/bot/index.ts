@@ -253,16 +253,24 @@ bot.on('edited_channel_post', async (ctx) => {
     });
 
     // Notify advertiser
-    const { notifyUser } = await import('../services/telegram.js');
+    const { notifyUser, formatNotification } = await import('../services/telegram.js');
     await notifyUser(
       deal.advertiser.telegramId,
-      `⚠️ <b>Post edited!</b>\n\nDeal #${deal.id}\nChannel: ${deal.channel.title}\n\nThe published ad post has been modified after publishing. Please review.`,
+      formatNotification({
+        emoji: '⚠️', title: 'Post edited',
+        dealId: deal.id, channel: deal.channel.title,
+        hint: 'The published ad post was modified. Please review.',
+      }),
     );
 
     // Also notify channel owner
     await notifyUser(
       deal.channelOwner.telegramId,
-      `⚠️ <b>Post edit detected</b>\n\nDeal #${deal.id}\nChannel: ${deal.channel.title}\n\nEditing published posts may affect fund release.`,
+      formatNotification({
+        emoji: '⚠️', title: 'Post edit detected',
+        dealId: deal.id, channel: deal.channel.title,
+        hint: 'Editing published posts may affect fund release.',
+      }),
     );
   }
 });

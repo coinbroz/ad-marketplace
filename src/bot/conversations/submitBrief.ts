@@ -1,7 +1,7 @@
 import type { Context } from 'grammy';
 import type { Conversation } from '@grammyjs/conversations';
 import { prisma } from '../../lib/prisma.js';
-import { notifyUser } from '../../services/telegram.js';
+import { notifyUser, formatNotification } from '../../services/telegram.js';
 
 /**
  * Grammy conversation: advertiser submits ad brief/materials for a deal.
@@ -163,23 +163,27 @@ export async function submitBriefConversation(
     );
 
     await ctx.reply(
-      `✅ <b>Brief sent for Deal #${dealId}!</b>\n\n` +
-      `Channel: ${selectedDeal.channel.title}\n` +
-      `The channel owner will create a post based on your brief.`,
+      formatNotification({
+        emoji: '✅', title: 'Brief sent',
+        dealId, channel: selectedDeal.channel.title,
+        hint: 'The channel owner will create a post based on your brief.',
+      }),
       { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } },
     );
 
     // Notify channel owner with brief
-    let notifyText = `📋 <b>Ad brief received!</b>\n\n` +
-      `Deal #${dealId}\n` +
-      `From: ${user.firstName}\n\n` +
-      `<b>Brief:</b>\n${briefText}`;
-
-    if (mediaType) {
-      notifyText += `\n\n📎 ${mediaType} attached (view in Mini App)`;
-    }
-
-    notifyText += `\n\nPlease create the ad post: use /submitcreative`;
+    const notifyText = formatNotification({
+      emoji: '📋', title: 'Ad brief received',
+      dealId, channel: selectedDeal.channel.title,
+      lines: [
+        `From: ${user.firstName}`,
+        '',
+        `<b>Brief:</b>`,
+        briefText,
+        ...(mediaType ? [``, `📎 ${mediaType} attached`] : []),
+      ],
+      hint: 'Please create the ad post: use /submitcreative',
+    });
 
     await conversation.external(() =>
       notifyUser(selectedDeal.channelOwner.telegramId, notifyText),

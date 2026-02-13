@@ -11,7 +11,7 @@ import {
   type CreateCampaignInput,
 } from '../../services/campaigns.js';
 import { prisma } from '../../lib/prisma.js';
-import { notifyUser } from '../../services/telegram.js';
+import { notifyUser, formatNotification } from '../../services/telegram.js';
 
 export async function campaignRoutes(app: FastifyInstance) {
   // List campaigns with filters
@@ -162,13 +162,17 @@ export async function campaignRoutes(app: FastifyInstance) {
     // Notify advertiser
     await notifyUser(
       campaign.advertiser.telegramId,
-      `📩 <b>New application for your campaign!</b>\n\n` +
-      `Channel: <b>${channel.title}</b> (@${channel.username})\n` +
-      `Subscribers: ${channel.subscriberCount.toLocaleString()}\n` +
-      `Price: ${priceInTon} TON\n` +
-      `Campaign: ${campaign.title}\n\n` +
-      (message ? `Message: ${message}\n\n` : '') +
-      `Deal #${deal.id}`,
+      formatNotification({
+        emoji: '📩', title: 'New campaign application',
+        dealId: deal.id, channel: `${channel.title} (@${channel.username})`,
+        price: priceInTon,
+        lines: [
+          `Subscribers: ${channel.subscriberCount.toLocaleString()}`,
+          `Campaign: ${campaign.title}`,
+          ...(message ? [`Message: ${message}`] : []),
+        ],
+        hint: 'Open the deal to accept or reject.',
+      }),
       {
         reply_markup: {
           inline_keyboard: [

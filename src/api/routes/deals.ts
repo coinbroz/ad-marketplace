@@ -17,7 +17,7 @@ import {
 } from '../../services/deals.js';
 import { getEscrowInfo, refundFunds, executePendingRefund } from '../../services/ton.js';
 import { prisma } from '../../lib/prisma.js';
-import { notifyUser } from '../../services/telegram.js';
+import { notifyUser, formatNotification } from '../../services/telegram.js';
 
 export async function dealRoutes(app: FastifyInstance) {
   // List my deals
@@ -95,15 +95,19 @@ export async function dealRoutes(app: FastifyInstance) {
 
     // Notify channel owner
     const user = await prisma.user.findUniqueOrThrow({ where: { id: request.userId } });
+    const fromLabel = `${user.firstName}${user.username ? ` (@${user.username})` : ''}`;
     await notifyUser(
       channel.owner.telegramId,
-      `📩 <b>New deal proposal!</b>\n\n` +
-      `From: ${user.firstName}${user.username ? ` (@${user.username})` : ''}\n` +
-      `Channel: ${channel.title}\n` +
-      `Format: ${selectedFormat}\n` +
-      `Price: ${price.priceInTon} TON\n` +
-      (brief ? `\nBrief: ${brief}\n` : '') +
-      `\nDeal #${deal.id}`,
+      formatNotification({
+        emoji: '📩', title: 'New deal proposal',
+        dealId: deal.id, channel: channel.title, price: price.priceInTon,
+        lines: [
+          `Format: ${selectedFormat}`,
+          `From: ${fromLabel}`,
+          ...(brief ? [`Brief: ${brief}`] : []),
+        ],
+        hint: 'Open the deal to accept or reject.',
+      }),
       {
         reply_markup: {
           inline_keyboard: [
@@ -117,12 +121,12 @@ export async function dealRoutes(app: FastifyInstance) {
     const channelLink = channel.username ? `@${channel.username}` : channel.title;
     await notifyUser(
       user.telegramId,
-      `📤 <b>Deal proposal sent!</b>\n\n` +
-      `Channel: ${channelLink}\n` +
-      `Format: ${selectedFormat}\n` +
-      `Price: ${price.priceInTon} TON\n\n` +
-      `Deal #${deal.id}\n` +
-      `Waiting for the channel owner to accept.`,
+      formatNotification({
+        emoji: '📤', title: 'Deal proposal sent',
+        dealId: deal.id, channel: channelLink, price: price.priceInTon,
+        lines: [`Format: ${selectedFormat}`],
+        hint: 'Waiting for the channel owner to accept.',
+      }),
       {
         reply_markup: {
           inline_keyboard: [
@@ -155,21 +159,25 @@ export async function dealRoutes(app: FastifyInstance) {
       : deal.channel.title;
     await notifyUser(
       deal.advertiser.telegramId,
-      `✅ <b>Deal accepted!</b>\n\nDeal #${dealId}\n` +
-      `Channel: ${acceptedChannelLink}\n` +
-      `Price: ${deal.priceInTon} TON\n\n` +
-      `Escrow address: <code>${updatedDeal.escrowAddress}</code>\n\n` +
-      `Please send ${deal.priceInTon} TON to this address to proceed.`,
+      formatNotification({
+        emoji: '✅', title: 'Deal accepted',
+        dealId, channelLink: acceptedChannelLink, price: deal.priceInTon,
+        lines: [
+          `Escrow: <code>${updatedDeal.escrowAddress}</code>`,
+        ],
+        hint: `Please send ${deal.priceInTon} TON to the escrow address.`,
+      }),
     );
 
     // Notify CHANNEL OWNER that deal was accepted
     if (deal.advertiser.telegramId !== deal.channelOwner.telegramId) {
       await notifyUser(
         deal.channelOwner.telegramId,
-        `✅ <b>Deal accepted!</b>\n\nDeal #${dealId}\n` +
-        `Channel: ${deal.channel.title}\n` +
-        `Price: ${deal.priceInTon} TON\n\n` +
-        `Waiting for advertiser to fund the escrow.`,
+        formatNotification({
+          emoji: '✅', title: 'Deal accepted',
+          dealId, channel: deal.channel.title, price: deal.priceInTon,
+          hint: 'Waiting for advertiser to fund the escrow.',
+        }),
       );
     }
 
@@ -192,11 +200,12 @@ export async function dealRoutes(app: FastifyInstance) {
 
     await notifyUser(
       otherTelegramId,
-      `❌ <b>Deal rejected</b>\n\n` +
-      `Deal #${dealId}\n` +
-      `Channel: ${deal.channel.title}\n` +
-      `By: ${cancellerName}\n\n` +
-      `The deal proposal was rejected.`,
+      formatNotification({
+        emoji: '❌', title: 'Deal rejected',
+        dealId, channel: deal.channel.title,
+        lines: [`By: ${cancellerName}`],
+        hint: 'The deal proposal was rejected.',
+      }),
     );
 
     return deal;
@@ -257,12 +266,12 @@ export async function dealRoutes(app: FastifyInstance) {
     // Notify the other party
     await notifyUser(
       otherTelegramId,
-      `🚫 <b>Deal cancelled</b>\n\n` +
-      `Deal #${dealId}\n` +
-      `Channel: ${deal.channel.title}\n` +
-      `Price: ${deal.priceInTon} TON\n` +
-      `Cancelled by: ${cancellerName}\n\n` +
-      `The deal has been cancelled.`,
+      formatNotification({
+        emoji: '🚫', title: 'Deal cancelled',
+        dealId, channel: deal.channel.title, price: deal.priceInTon,
+        lines: [`Cancelled by: ${cancellerName}`],
+        hint: 'The deal has been cancelled.',
+      }),
     );
 
     // Notify advertiser about refund address if payment was involved
@@ -270,10 +279,11 @@ export async function dealRoutes(app: FastifyInstance) {
       const advertiserTgId = deal.advertiser.telegramId;
       await notifyUser(
         advertiserTgId,
-        `🔄 <b>Refund pending</b>\n\n` +
-        `Deal #${dealId}\n` +
-        `Amount: ${deal.priceInTon} TON\n\n` +
-        `Please open the Mini App → My Deals → Deal #${dealId} and enter your TON wallet address for the refund.`,
+        formatNotification({
+          emoji: '🔄', title: 'Refund pending',
+          dealId, channel: deal.channel.title, price: deal.priceInTon,
+          hint: 'Open My Deals → Deal and enter your TON wallet address for the refund.',
+        }),
       );
     }
 
@@ -383,11 +393,12 @@ export async function dealRoutes(app: FastifyInstance) {
     // Notify advertiser
     await notifyUser(
       deal.advertiser.telegramId,
-      `📝 <b>Creative submitted for review!</b>\n\n` +
-      `Deal #${dealId}\n` +
-      `Channel: ${deal.channel.title}\n\n` +
-      `<b>Preview:</b>\n${body.text}\n\n` +
-      `Please review and approve or request edits.`,
+      formatNotification({
+        emoji: '📝', title: 'Creative submitted for review',
+        dealId, channel: deal.channel.title,
+        lines: [`<b>Preview:</b>`, body.text],
+        hint: 'Please review and approve or request edits.',
+      }),
     );
 
     return deal;
@@ -402,10 +413,11 @@ export async function dealRoutes(app: FastifyInstance) {
     // Notify channel owner with clear next step
     await notifyUser(
       deal.channelOwner.telegramId,
-      `✅ <b>Creative approved!</b>\n\n` +
-      `Deal #${dealId}\n` +
-      `Channel: ${deal.channel.title}\n\n` +
-      `Send /schedulepost to the bot to publish the post in the channel.`,
+      formatNotification({
+        emoji: '✅', title: 'Creative approved',
+        dealId, channel: deal.channel.title,
+        hint: 'Send /schedulepost to publish the post in the channel.',
+      }),
     );
 
     return deal;
@@ -421,12 +433,12 @@ export async function dealRoutes(app: FastifyInstance) {
     // Notify channel owner with clear next step
     await notifyUser(
       deal.channelOwner.telegramId,
-      `✏️ <b>Edit requested</b>\n\n` +
-      `Deal #${dealId}\n` +
-      `Channel: ${deal.channel.title}\n\n` +
-      `<b>Advertiser's comment:</b>\n${body.comment}\n\n` +
-      `Please update the creative based on this feedback.\n` +
-      `Send /submitcreative to the bot to resubmit.`,
+      formatNotification({
+        emoji: '✏️', title: 'Edit requested',
+        dealId, channel: deal.channel.title,
+        lines: [`<b>Comment:</b>`, body.comment],
+        hint: 'Please update the creative and send /submitcreative.',
+      }),
     );
 
     return deal;
