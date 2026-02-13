@@ -55,8 +55,11 @@ export function PaymentPage() {
   const payAmountTon = hasPartialPayment ? remaining : deal.priceInTon;
   const payAmountNano = Math.round(payAmountTon * 1e9).toString();
 
-  const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}`;
-  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}`;
+  // Include stateInit in deeplink to deploy escrow contract atomically with payment.
+  // This prevents bounce fees when TonKeeper sends to undeployed wallet.
+  const initParam = escrow.stateInit ? `&init=${escrow.stateInit}` : '';
+  const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}${initParam}`;
+  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}${initParam}`;
 
   const copyAddress = () => {
     if (escrow.address) {

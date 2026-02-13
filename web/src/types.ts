@@ -100,6 +100,7 @@ export interface EscrowInfo {
   requiredAmount: number;
   currentBalance: number;
   status: DealStatus;
+  stateInit: string | null;
   explorerUrl: string | null;
   paymentTx: string | null;
   payoutTx: string | null;

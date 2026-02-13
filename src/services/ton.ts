@@ -7,6 +7,7 @@ import {
   sendFromEscrow,
   fromNano,
   toNano,
+  getEscrowStateInitBoc,
 } from '../utils/ton-wallet.js';
 import { config, GAS_RESERVE_TON, TON_ENDPOINT, PAYMENT_TOLERANCE_NANOTON } from '../config.js';
 import { transitionDeal } from './deals.js';
@@ -567,6 +568,7 @@ export async function getEscrowInfo(dealId: number) {
       paidTxHash: true,
       payoutTxHash: true,
       refundTxHash: true,
+      escrowWallet: { select: { publicKey: true } },
     },
   });
 
@@ -574,16 +576,7 @@ export async function getEscrowInfo(dealId: number) {
   if (deal.escrowAddress) {
     try {
       const rawBalance = await getWalletBalance(deal.escrowAddress);
-      const rawTon = fromNano(rawBalance);
-      // If balance is within tolerance of deal price, show the deal price (clean number).
-      // This avoids showing 0.499999999 when user sent exactly 0.5 but lost 1 nanoton to bounce.
-      const required = deal.priceInTon;
-      const diff = Math.abs(rawTon - required);
-      if (diff < 0.001 && rawTon > 0) {
-        balance = required;
-      } else {
-        balance = parseFloat(rawTon.toFixed(4));
-      }
+      balance = parseFloat(fromNano(rawBalance).toFixed(4));
     } catch {
       // Address might not exist yet
     }
@@ -595,11 +588,23 @@ export async function getEscrowInfo(dealId: number) {
     ? Address.parse(deal.escrowAddress).toString({ bounceable: false, testOnly: isTestnet })
     : null;
 
+  // Generate stateInit BOC for the deeplink — deploys escrow contract
+  // atomically with payment, preventing bounce on undeployed wallets.
+  let stateInit: string | null = null;
+  if (deal.escrowWallet?.publicKey && deal.status === 'AWAITING_PAYMENT') {
+    try {
+      stateInit = getEscrowStateInitBoc(deal.escrowWallet.publicKey);
+    } catch {
+      // Non-critical: payment will still work without stateInit
+    }
+  }
+
   return {
     address: displayAddress,
     requiredAmount: deal.priceInTon,
     currentBalance: balance,
     status: deal.status,
+    stateInit,
     explorerUrl: displayAddress ? addressExplorerUrl(displayAddress) : null,
     paymentTx: isRealTxHash(deal.paidTxHash) ? txExplorerUrl(deal.paidTxHash!) : null,
     payoutTx: isRealTxHash(deal.payoutTxHash) ? txExplorerUrl(deal.payoutTxHash!) : null,

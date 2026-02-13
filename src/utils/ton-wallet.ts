@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { TonClient, WalletContractV4, internal } from '@ton/ton';
+import { beginCell, storeStateInit } from '@ton/core';
 import { config, TON_ENDPOINT } from '../config.js';
 
 // ── Key Encryption (AES-256-GCM) ──────────────────────────
@@ -97,6 +98,20 @@ function generateMnemonic(): string[] {
     words.push(crypto.randomBytes(4).toString('hex'));
   }
   return words;
+}
+
+// ── StateInit for Deeplinks ───────────────────────────────
+
+/**
+ * Generate the stateInit BOC for an escrow wallet (base64url-encoded).
+ * Including this in the payment deeplink (?init=...) deploys the wallet
+ * contract atomically with the payment — prevents bounce on undeployed wallets.
+ */
+export function getEscrowStateInitBoc(publicKeyHex: string): string {
+  const publicKey = Buffer.from(publicKeyHex, 'hex');
+  const wallet = WalletContractV4.create({ workchain: 0, publicKey });
+  const cell = beginCell().store(storeStateInit(wallet.init)).endCell();
+  return cell.toBoc().toString('base64url');
 }
 
 // ── TON API Calls ──────────────────────────────────────────
