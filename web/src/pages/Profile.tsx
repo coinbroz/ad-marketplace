@@ -15,6 +15,7 @@ export function ProfilePage({ user }: Props) {
   const queryClient = useQueryClient();
   const [walletAddress, setWalletAddress] = useState('');
   const [editingWallet, setEditingWallet] = useState(false);
+  const [showAddChannel, setShowAddChannel] = useState(false);
   const [newChannelUsername, setNewChannelUsername] = useState('');
   const [newChannelLanguage, setNewChannelLanguage] = useState('');
 
@@ -42,6 +43,7 @@ export function ProfilePage({ user }: Props) {
       queryClient.invalidateQueries({ queryKey: ['me'] });
       setNewChannelUsername('');
       setNewChannelLanguage('');
+      setShowAddChannel(false);
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
     },
     onError: (err: Error) => {
@@ -125,17 +127,17 @@ export function ProfilePage({ user }: Props) {
       </Section>
 
       <Section header="My Channels">
-        {me.channels?.length === 0 && (
+        {me.channels?.length === 0 && !showAddChannel && (
           <Placeholder description="No channels added yet" />
         )}
         {me.channels?.map((channel) => (
           <Cell
             key={channel.id}
-            subtitle={`${channel.subscriberCount.toLocaleString()} subscribers${channel.language ? ` · ${channel.language}` : ''}`}
+            subtitle={`${channel.subscriberCount.toLocaleString()} subs${channel.language ? ` · ${channel.language}` : ''}`}
             after={
               channel.botIsAdmin
                 ? <Badge type="dot" />
-                : <span style={{ fontSize: 12, color: '#d9534f' }}>Bot not admin</span>
+                : <span style={{ fontSize: 11, color: '#d9534f' }}>No bot</span>
             }
             onClick={() => navigate(`/channels/${channel.id}`)}
           >
@@ -143,30 +145,49 @@ export function ProfilePage({ user }: Props) {
           </Cell>
         ))}
 
-        <div style={{ padding: '8px 0' }}>
-          <Input
-            placeholder="@channel_username"
-            value={newChannelUsername}
-            onChange={(e) => setNewChannelUsername(e.target.value)}
-          />
-          <LanguageInput
-            placeholder="Channel language (e.g. English, Russian)"
-            value={newChannelLanguage}
-            onChange={setNewChannelLanguage}
-          />
-          <div style={{ padding: '8px 0' }}>
+        {showAddChannel ? (
+          <div style={{ padding: '4px 0' }}>
+            <Input
+              placeholder="@channel_username"
+              value={newChannelUsername}
+              onChange={(e) => setNewChannelUsername(e.target.value)}
+            />
+            <LanguageInput
+              placeholder="Language (e.g. English, Russian)"
+              value={newChannelLanguage}
+              onChange={setNewChannelLanguage}
+            />
+            <div style={{ display: 'flex', gap: 8, padding: '8px 16px' }}>
+              <Button
+                size="l"
+                stretched
+                onClick={() => addChannelMutation.mutate()}
+                disabled={!newChannelUsername}
+                loading={addChannelMutation.isPending}
+              >
+                Add
+              </Button>
+              <Button
+                size="l"
+                stretched
+                mode="outline"
+                onClick={() => { setShowAddChannel(false); setNewChannelUsername(''); setNewChannelLanguage(''); }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: '4px 16px 8px' }}>
             <Button
-              size="l"
-              stretched
+              size="s"
               mode="outline"
-              onClick={() => addChannelMutation.mutate()}
-              disabled={!newChannelUsername}
-              loading={addChannelMutation.isPending}
+              onClick={() => setShowAddChannel(true)}
             >
-              Add Channel
+              + Add Channel
             </Button>
           </div>
-        </div>
+        )}
       </Section>
 
       <Section header="My Campaigns">
