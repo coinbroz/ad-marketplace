@@ -265,16 +265,18 @@ export async function dealRoutes(app: FastifyInstance) {
 
     // Advertiser notification
     const advertiserLines: string[] = [`Cancelled by: ${cancellerName}`];
+    const BLOCKCHAIN_FEE_ESTIMATE = 0.005;
     if (refundSent) {
+      const receiveEstimate = Math.max(0, refundAmount - BLOCKCHAIN_FEE_ESTIMATE);
       advertiserLines.push(
         '',
         `✅ <b>Refund sent automatically</b>`,
         `💰 Deal price: ${formatAmount(deal.priceInTon)} TON`,
         `⛽ Gas reserve: −${formatAmount(GAS_RESERVE_TON)} TON`,
-        `📤 Refunded: ~${formatAmount(refundAmount)} TON`,
-        `📝 To: <code>${deal.refundAddress}</code>`,
+        `🔗 Blockchain fee: ~${formatAmount(BLOCKCHAIN_FEE_ESTIMATE)} TON`,
+        `📤 You receive: ~${formatAmount(receiveEstimate)} TON`,
         '',
-        `<i>Network fee (~0.005 TON) is additionally deducted by the blockchain.</i>`,
+        `📝 To: <code>${deal.refundAddress}</code>`,
       );
     }
     const advertiserMsg = formatNotification({

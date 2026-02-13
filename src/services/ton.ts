@@ -397,12 +397,13 @@ export async function refundFunds(dealId: number): Promise<string | null> {
 
   const dealPriceStr = formatTon(deal.priceInTon);
   const gasReserveStr = formatTon(GAS_RESERVE_TON);
+  const blockchainFeeEstimate = 0.005;
+  const receiveEstimate = Math.max(0, Number(refundTonStr) - blockchainFeeEstimate);
   const breakdownLines = [
     `💰 Deal price: ${dealPriceStr} TON`,
     `⛽ Gas reserve: −${gasReserveStr} TON`,
-    `📤 Sent: ${refundTonStr} TON`,
-    '',
-    `<i>Blockchain fee (~0.004 TON) deducted by the network.</i>`,
+    `🔗 Blockchain fee: ~${formatTon(blockchainFeeEstimate)} TON`,
+    `📤 You receive: ~${formatTon(receiveEstimate)} TON`,
   ];
 
   let refundTitle: string;
@@ -431,7 +432,8 @@ export async function refundFunds(dealId: number): Promise<string | null> {
     lines: [
       `💰 Deal price: ${dealPriceStr} TON`,
       `⛽ Gas reserve: −${gasReserveStr} TON`,
-      `📤 Refunded: ${refundTonStr} TON`,
+      `🔗 Blockchain fee: ~${formatTon(blockchainFeeEstimate)} TON`,
+      `📤 Refunded: ~${formatTon(receiveEstimate)} TON`,
       ...(txLine ? ['', txLine] : []),
     ],
   });
