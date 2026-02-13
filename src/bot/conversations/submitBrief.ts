@@ -62,7 +62,8 @@ export async function submitBriefConversation(
     const inlineKeyboard: Array<Array<{ text: string; callback_data: string }>> = [];
 
     for (const deal of deals) {
-      dealListText += `#${deal.id} — ${deal.channel.title} (${deal.priceInTon} TON)\n`;
+      const fmt = deal.format === 'forward' ? 'Forward' : deal.format === 'story' ? 'Story' : 'Post';
+      dealListText += `#${deal.id} — ${deal.channel.title} (${fmt} · ${deal.priceInTon} TON)\n`;
       if (deal.brief) {
         dealListText += `  Current brief: ${deal.brief.slice(0, 50)}...\n`;
       }
@@ -96,11 +97,28 @@ export async function submitBriefConversation(
     }
   }
 
-  // Ask for brief content
+  // Ask for brief content (format-specific instructions)
+  const formatLabel = selectedDeal.format === 'forward' ? 'Forward/Repost'
+    : selectedDeal.format === 'story' ? 'Story' : 'Post';
+
+  let briefInstructions: string;
+  if (selectedDeal.format === 'forward') {
+    briefInstructions =
+      'This deal is for a <b>forward/repost</b> to the channel.\n\n' +
+      'Send the message that should be forwarded — include the exact text and any media attachments.';
+  } else if (selectedDeal.format === 'story') {
+    briefInstructions =
+      'This deal is for a <b>Telegram Story</b>.\n\n' +
+      'Send the photo or video for the Story, along with any captions or requirements.';
+  } else {
+    briefInstructions =
+      'Send your ad brief below: describe what you want to advertise, key messages, requirements.\n\n' +
+      'You can attach a photo, video, or document with your materials.';
+  }
+
   await ctx.reply(
-    `📋 <b>Deal #${dealId} — ${selectedDeal.channel.title}</b>\n\n` +
-    'Send your ad brief below: describe what you want to advertise, key messages, requirements.\n\n' +
-    'You can attach a photo, video, or document with your materials.',
+    `📋 <b>Deal #${dealId} — ${selectedDeal.channel.title}</b>\n📌 Format: ${formatLabel}\n\n` +
+    briefInstructions,
     { parse_mode: 'HTML' },
   );
 

@@ -64,13 +64,8 @@ export function PaymentPage() {
   const payAmountTon = hasPartialPayment ? remaining : deal.priceInTon;
   const payAmountNano = Math.round(payAmountTon * 1e9).toString();
 
-  // QR code uses simple URL (without stateInit) to keep it scannable.
   const qrUrl = `ton://transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}`;
-
-  // Deeplink button includes stateInit to deploy escrow contract atomically with payment.
-  // This prevents bounce fees when TonKeeper sends to undeployed wallet.
-  const initParam = escrow.stateInit ? `&init=${escrow.stateInit}` : '';
-  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}${initParam}`;
+  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}`;
 
   const copyAddress = () => {
     if (escrow.address) {

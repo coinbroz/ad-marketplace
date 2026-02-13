@@ -7,7 +7,6 @@ import {
   sendFromEscrow,
   fromNano,
   toNano,
-  getEscrowStateInitBoc,
 } from '../utils/ton-wallet.js';
 import { config, GAS_RESERVE_TON, TON_ENDPOINT, PAYMENT_TOLERANCE_NANOTON } from '../config.js';
 import { transitionDeal } from './deals.js';
@@ -591,23 +590,11 @@ export async function getEscrowInfo(dealId: number) {
     ? Address.parse(deal.escrowAddress).toString({ bounceable: false, testOnly: isTestnet })
     : null;
 
-  // Generate stateInit BOC for the deeplink — deploys escrow contract
-  // atomically with payment, preventing bounce on undeployed wallets.
-  let stateInit: string | null = null;
-  if (deal.escrowWallet?.publicKey && deal.status === 'AWAITING_PAYMENT') {
-    try {
-      stateInit = getEscrowStateInitBoc(deal.escrowWallet.publicKey);
-    } catch {
-      // Non-critical: payment will still work without stateInit
-    }
-  }
-
   return {
     address: displayAddress,
     requiredAmount: deal.priceInTon,
     currentBalance: balance,
     status: deal.status,
-    stateInit,
     explorerUrl: displayAddress ? addressExplorerUrl(displayAddress) : null,
     paymentTx: isRealTxHash(deal.paidTxHash) ? txExplorerUrl(deal.paidTxHash!) : null,
     payoutTx: isRealTxHash(deal.payoutTxHash) ? txExplorerUrl(deal.payoutTxHash!) : null,

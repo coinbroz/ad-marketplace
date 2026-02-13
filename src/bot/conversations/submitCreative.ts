@@ -68,7 +68,8 @@ export async function submitCreativeConversation(
     const inlineKeyboard: Array<Array<{ text: string; callback_data: string }>> = [];
 
     for (const deal of deals) {
-      dealListText += `#${deal.id} — ${deal.channel.title} (${deal.priceInTon} TON)\n`;
+      const fmt = deal.format === 'forward' ? 'Forward' : deal.format === 'story' ? 'Story' : 'Post';
+      dealListText += `#${deal.id} — ${deal.channel.title} (${fmt} · ${deal.priceInTon} TON)\n`;
       dealListText += `  Advertiser: ${deal.advertiser.firstName}\n`;
       if (deal.editComment) {
         dealListText += `  ✏️ Edit requested: ${deal.editComment}\n`;
@@ -104,7 +105,9 @@ export async function submitCreativeConversation(
   }
 
   // Show brief from advertiser
-  let briefInfo = `📝 <b>Deal #${dealId} — ${selectedDeal.channel.title}</b>\n\n`;
+  const formatLabel = selectedDeal.format === 'forward' ? 'Forward/Repost'
+    : selectedDeal.format === 'story' ? 'Story' : 'Post';
+  let briefInfo = `📝 <b>Deal #${dealId} — ${selectedDeal.channel.title}</b>\n📌 Format: ${formatLabel}\n\n`;
   if (selectedDeal.brief) {
     briefInfo += `📋 <b>Advertiser's brief:</b>\n${selectedDeal.brief}\n\n`;
   }
@@ -132,14 +135,29 @@ export async function submitCreativeConversation(
     }
   }
 
-  // Clear instruction AFTER all materials are shown
-  await ctx.reply(
-    '✏️ <b>Now create the ad post.</b>\n\n' +
-    'Send a message with the post text exactly as it should appear in the channel. ' +
-    'You can attach a photo or video to your message.\n\n' +
-    'This will be sent to the advertiser for approval.',
-    { parse_mode: 'HTML' },
-  );
+  // Clear instruction AFTER all materials are shown (format-specific)
+  let creativeInstruction: string;
+  if (selectedDeal.format === 'forward') {
+    creativeInstruction =
+      '✏️ <b>Prepare the message for forwarding.</b>\n\n' +
+      'Send the exact message that will be forwarded/reposted to the channel. ' +
+      'You can attach a photo or video.\n\n' +
+      'This will be sent to the advertiser for approval.';
+  } else if (selectedDeal.format === 'story') {
+    creativeInstruction =
+      '✏️ <b>Create the Story content.</b>\n\n' +
+      'Send a photo or video for the Telegram Story. ' +
+      'You can add a caption.\n\n' +
+      'This will be sent to the advertiser for approval.';
+  } else {
+    creativeInstruction =
+      '✏️ <b>Now create the ad post.</b>\n\n' +
+      'Send a message with the post text exactly as it should appear in the channel. ' +
+      'You can attach a photo or video to your message.\n\n' +
+      'This will be sent to the advertiser for approval.';
+  }
+
+  await ctx.reply(creativeInstruction, { parse_mode: 'HTML' });
 
   // Wait for creative content (text, photo, video, or document)
   const creativeResponse = await conversation.waitFor([
