@@ -278,6 +278,36 @@ export function ChannelPage({ user }: Props) {
               </div>
             </div>
           )}
+
+          <div style={{ padding: '16px 16px 8px' }}>
+            <Button
+              size="s"
+              mode="outline"
+              stretched
+              style={{ color: '#d9534f', borderColor: '#d9534f' }}
+              onClick={() => {
+                const tg = window.Telegram?.WebApp;
+                if (tg?.showConfirm) {
+                  tg.showConfirm(
+                    `Remove "${channel.title}" from the marketplace? This will hide it from listings. You can re-add it later.`,
+                    async (confirmed: boolean) => {
+                      if (confirmed) {
+                        try {
+                          await updateChannel(channel.id, { isActive: false });
+                          tg.HapticFeedback?.notificationOccurred('success');
+                          navigate('/profile');
+                        } catch (err) {
+                          tg.showAlert?.(err instanceof Error ? err.message : 'Failed to remove');
+                        }
+                      }
+                    },
+                  );
+                }
+              }}
+            >
+              Remove Channel
+            </Button>
+          </div>
         </Section>
       )}
 
