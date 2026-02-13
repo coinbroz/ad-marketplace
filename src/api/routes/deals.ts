@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { config } from '../../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { verifyChannelAdmin, getDealChannelIds } from '../middleware/verify-admin.js';
 import {
@@ -103,6 +104,13 @@ export async function dealRoutes(app: FastifyInstance) {
       `Price: ${price.priceInTon} TON\n` +
       (brief ? `\nBrief: ${brief}\n` : '') +
       `\nDeal #${deal.id}`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📋 Open Deal', web_app: { url: `${config.WEBAPP_URL}/deals/${deal.id}` } }],
+          ],
+        },
+      },
     );
 
     return reply.status(201).send(deal);

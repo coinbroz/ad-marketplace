@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { config } from '../../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
   createCampaign,
@@ -168,6 +169,13 @@ export async function campaignRoutes(app: FastifyInstance) {
       `Campaign: ${campaign.title}\n\n` +
       (message ? `Message: ${message}\n\n` : '') +
       `Deal #${deal.id}`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📋 Open Deal', web_app: { url: `${config.WEBAPP_URL}/deals/${deal.id}` } }],
+          ],
+        },
+      },
     );
 
     return reply.status(201).send(deal);
