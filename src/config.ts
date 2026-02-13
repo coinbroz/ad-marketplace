@@ -76,3 +76,7 @@ export const STATS_UPDATER_INTERVAL = 6 * 3600_000; // 6 hours
 
 // Gas reserve for escrow wallet transactions
 export const GAS_RESERVE_TON = 0.05;
+
+// Network fee buffer: added to payment requests so escrow receives at least the deal price.
+// TON forwarding fees deduct a tiny amount (~0.000000001 TON) from transfers.
+export const NETWORK_FEE_BUFFER_TON = 0.01;

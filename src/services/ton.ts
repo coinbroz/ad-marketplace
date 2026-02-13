@@ -118,7 +118,8 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
     const isTestnet = config.TON_NETWORK === 'testnet';
     const displayAddr = Address.parse(deal.escrowAddress).toString({ bounceable: false, testOnly: isTestnet });
     const addrLine = `\n🔗 <a href="${addressExplorerUrl(displayAddr)}">View escrow on TON Explorer</a>`;
-    const amountStr = formatTon(fromNano(balance));
+    // Show the deal price (clean amount), not raw balance
+    const amountStr = formatTon(deal.priceInTon);
     const advertiserMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${amountStr} TON${addrLine}\n\n📋 Now send your ad brief and materials: use /submitbrief`;
     const ownerMsg = `💰 <b>Payment received!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${amountStr} TON${addrLine}\n\n⏳ Waiting for the advertiser to send their ad brief.`;
 
@@ -185,10 +186,12 @@ export async function releaseFunds(dealId: number): Promise<string | null> {
     tag: deal.escrowWallet.secretKeyTag,
   });
 
-  // Get escrow balance
+  // Get escrow balance and use deal price for clean amount calculations.
+  // Raw balance may be e.g. 0.509999999 TON due to network fee deductions;
+  // using deal.priceInTon gives clean round amounts (e.g. 0.45 instead of 0.449999999).
   const balance = await getWalletBalance(deal.escrowAddress!);
+  const dealAmountNano = toNano(deal.priceInTon);
 
-  // Calculate amounts
   const feePercent = config.PLATFORM_FEE_PERCENT;
   const gasReserve = toNano(GAS_RESERVE_TON);
 
@@ -196,10 +199,15 @@ export async function releaseFunds(dealId: number): Promise<string | null> {
   let feeAmount = 0n;
 
   if (feePercent > 0) {
-    feeAmount = (balance * BigInt(Math.round(feePercent * 100))) / 10000n;
-    ownerAmount = balance - feeAmount - gasReserve;
+    feeAmount = (dealAmountNano * BigInt(Math.round(feePercent * 100))) / 10000n;
+    ownerAmount = dealAmountNano - feeAmount - gasReserve;
   } else {
-    ownerAmount = balance - gasReserve;
+    ownerAmount = dealAmountNano - gasReserve;
+  }
+
+  // Safety: if escrow somehow has less than needed, fall back to balance-based calc
+  if (balance < ownerAmount) {
+    ownerAmount = balance > gasReserve ? balance - gasReserve : balance;
   }
 
   if (ownerAmount <= 0n) {
@@ -247,7 +255,7 @@ export async function releaseFunds(dealId: number): Promise<string | null> {
   const txLine = isRealTxHash(txHash)
     ? `\n🔗 <a href="${txExplorerUrl(txHash)}">View transaction on TON Explorer</a>`
     : '';
-  const payoutMsg = `✅ <b>Payout completed!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(ownerAmount)} TON${txLine}`;
+  const payoutMsg = `✅ <b>Payout completed!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${formatTon(fromNano(ownerAmount))} TON${txLine}`;
 
   await Promise.all([
     notifyUser(deal.channelOwner.telegramId, payoutMsg),
@@ -297,8 +305,24 @@ export async function refundFunds(dealId: number): Promise<string | null> {
     tag: deal.escrowWallet.secretKeyTag,
   });
 
+  // Use deal price for clean amounts (e.g. 0.45 TON instead of 0.449999999)
   const gasReserve = toNano(GAS_RESERVE_TON);
-  const refundAmount = balance > gasReserve ? balance - gasReserve : balance;
+  const dealAmountNano = toNano(deal.priceInTon);
+
+  // If balance is close to deal price, use deal price for clean math
+  const diff = balance > dealAmountNano ? balance - dealAmountNano : dealAmountNano - balance;
+  let refundAmount: bigint;
+  if (diff <= PAYMENT_TOLERANCE) {
+    refundAmount = dealAmountNano > gasReserve ? dealAmountNano - gasReserve : dealAmountNano;
+  } else {
+    // Significant over/underpayment — use actual balance
+    refundAmount = balance > gasReserve ? balance - gasReserve : balance;
+  }
+
+  // Safety: ensure escrow actually has enough
+  if (balance < refundAmount) {
+    refundAmount = balance > gasReserve ? balance - gasReserve : balance;
+  }
 
   // Send real TON transaction if we have a valid address
   let txHash: string;
@@ -321,6 +345,8 @@ export async function refundFunds(dealId: number): Promise<string | null> {
     refundTxHash: txHash,
     refundedAt: new Date(),
   });
+
+  const refundTonStr = formatTon(fromNano(refundAmount));
 
   // Log refund event
   await prisma.dealEvent.create({
@@ -345,16 +371,16 @@ export async function refundFunds(dealId: number): Promise<string | null> {
 
   let refundMsg: string;
   if (hasRealAddress && hasRealTx) {
-    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\nTo: <code>${refundToAddress}</code>${txLine}`;
+    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${refundTonStr} TON\nTo: <code>${refundToAddress}</code>${txLine}`;
   } else if (hasRealAddress) {
-    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\nTo: <code>${refundToAddress}</code>\n\n⏳ Transaction is being processed on the blockchain.`;
+    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${refundTonStr} TON\nTo: <code>${refundToAddress}</code>\n\n⏳ Transaction is being processed on the blockchain.`;
   } else {
-    refundMsg = `🔄 <b>Refund initiated</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON\n\n📝 Please open the deal in Mini App and enter your refund wallet address.`;
+    refundMsg = `🔄 <b>Refund initiated</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${refundTonStr} TON\n\n📝 Please open the deal in Mini App and enter your refund wallet address.`;
   }
 
   await Promise.all([
     notifyUser(deal.advertiser.telegramId, refundMsg),
-    notifyUser(deal.channelOwner.telegramId, `🔄 <b>Refund processed</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${fromNano(refundAmount)} TON${txLine}`),
+    notifyUser(deal.channelOwner.telegramId, `🔄 <b>Refund processed</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${refundTonStr} TON${txLine}`),
   ]);
 
   return txHash;
@@ -408,14 +434,25 @@ export async function executePendingRefund(dealId: number): Promise<string | nul
     tag: deal.escrowWallet.secretKeyTag,
   });
 
+  // Use deal price for clean amounts when balance is close to deal price
   const gasReserve = toNano(GAS_RESERVE_TON);
-  const refundAmount = balance > gasReserve ? balance - gasReserve : balance;
+  const dealAmountNano = toNano(deal.priceInTon);
+  const diff = balance > dealAmountNano ? balance - dealAmountNano : dealAmountNano - balance;
+  let refundAmount: bigint;
+  if (diff <= PAYMENT_TOLERANCE) {
+    refundAmount = dealAmountNano > gasReserve ? dealAmountNano - gasReserve : dealAmountNano;
+  } else {
+    refundAmount = balance > gasReserve ? balance - gasReserve : balance;
+  }
+  if (balance < refundAmount) {
+    refundAmount = balance > gasReserve ? balance - gasReserve : balance;
+  }
   const publicKey = Buffer.from(deal.escrowWallet.publicKey, 'hex');
 
-  console.log(`Executing pending refund for deal ${dealId}: ${fromNano(refundAmount)} TON → ${refundToAddress}`);
+  console.log(`Executing pending refund for deal ${dealId}: ${formatTon(fromNano(refundAmount))} TON → ${refundToAddress}`);
   console.log(`  escrowAddress: ${deal.escrowAddress}`);
   console.log(`  publicKey (hex): ${deal.escrowWallet.publicKey}`);
-  console.log(`  balance: ${fromNano(balance)} TON, gasReserve: ${GAS_RESERVE_TON} TON, refundAmount: ${fromNano(refundAmount)} TON`);
+  console.log(`  balance: ${formatTon(fromNano(balance))} TON, gasReserve: ${GAS_RESERVE_TON} TON, refundAmount: ${formatTon(fromNano(refundAmount))} TON`);
 
   const onChainHash = await sendFromEscrow({
     publicKey,
@@ -447,7 +484,7 @@ export async function executePendingRefund(dealId: number): Promise<string | nul
     const txLine = `\n🔗 <a href="${txExplorerUrl(onChainHash)}">View transaction on TON Explorer</a>`;
     await notifyUser(
       deal.advertiser.telegramId,
-      `✅ <b>Refund sent!</b>\n\nDeal #${dealId}\nAmount: ${fromNano(refundAmount)} TON\nTo: <code>${refundToAddress}</code>${txLine}`,
+      `✅ <b>Refund sent!</b>\n\nDeal #${dealId}\nAmount: ${formatTon(fromNano(refundAmount))} TON\nTo: <code>${refundToAddress}</code>${txLine}`,
     );
 
     console.log(`Pending refund executed for deal ${dealId}: ${onChainHash}`);
@@ -478,7 +515,8 @@ export async function getEscrowInfo(dealId: number) {
   if (deal.escrowAddress) {
     try {
       const rawBalance = await getWalletBalance(deal.escrowAddress);
-      balance = fromNano(rawBalance);
+      // Round to 4 decimals for clean display (avoids 0.509999999)
+      balance = parseFloat(fromNano(rawBalance).toFixed(4));
     } catch {
       // Address might not exist yet
     }

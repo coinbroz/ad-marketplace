@@ -69,7 +69,7 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
 // ── Config ────────────────────────────────────────────────
 
 export function getAppConfig() {
-  return api<{ tonNetwork: 'testnet' | 'mainnet' }>('/api/config');
+  return api<{ tonNetwork: 'testnet' | 'mainnet'; networkFeeBuffer: number }>('/api/config');
 }
 
 // ── User ───────────────────────────────────────────────────
