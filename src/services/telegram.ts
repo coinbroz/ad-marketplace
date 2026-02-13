@@ -88,7 +88,6 @@ export async function getChatAdministrators(chatId: string | number) {
 
 /**
  * Format a consistent deal notification message.
- * All bot notifications use this for uniform visual width.
  */
 export function formatNotification(params: {
   emoji: string;
@@ -100,12 +99,9 @@ export function formatNotification(params: {
   lines?: string[];
   hint?: string;
 }): string {
-  const sep = '━━━━━━━━━━━━━━━━━━━━━';
   const ch = params.channelLink || params.channel || '';
   const parts: string[] = [
-    sep,
     `${params.emoji}  <b>${params.title}</b>`,
-    sep,
     '',
     `<b>Deal #${params.dealId}</b>${ch ? ` · ${ch}` : ''}`,
   ];
