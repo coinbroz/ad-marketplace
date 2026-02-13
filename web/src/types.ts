@@ -68,6 +68,8 @@ export interface Deal {
   status: DealStatus;
   escrowAddress: string | null;
   brief: string | null;
+  briefMediaType: string | null;
+  briefMediaFileId: string | null;
   creativeText: string | null;
   creativeMediaType: string | null;
   creativeApproved: boolean;

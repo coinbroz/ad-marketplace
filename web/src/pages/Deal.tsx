@@ -244,7 +244,7 @@ export function DealPage({ user }: Props) {
         </div>
       )}
 
-      {deal.status === 'FUNDED' && isAdvertiser && !deal.brief && (
+      {deal.status === 'FUNDED' && isAdvertiser && !deal.brief && !deal.briefMediaFileId && (
         <div style={{
           padding: '12px 16px',
           background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
@@ -262,7 +262,7 @@ export function DealPage({ user }: Props) {
         </div>
       )}
 
-      {deal.status === 'FUNDED' && isAdvertiser && deal.brief && (
+      {deal.status === 'FUNDED' && isAdvertiser && (deal.brief || deal.briefMediaFileId) && (
         <div style={{
           padding: '12px 16px',
           background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
@@ -275,7 +275,7 @@ export function DealPage({ user }: Props) {
         </div>
       )}
 
-      {deal.status === 'FUNDED' && isOwner && !deal.brief && (
+      {deal.status === 'FUNDED' && isOwner && !deal.brief && !deal.briefMediaFileId && (
         <div style={{
           padding: '12px 16px',
           background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
@@ -288,7 +288,7 @@ export function DealPage({ user }: Props) {
         </div>
       )}
 
-      {deal.status === 'FUNDED' && isOwner && deal.brief && (
+      {deal.status === 'FUNDED' && isOwner && (deal.brief || deal.briefMediaFileId) && (
         <div style={{
           padding: '12px 16px',
           background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
