@@ -113,6 +113,25 @@ export async function dealRoutes(app: FastifyInstance) {
       },
     );
 
+    // Notify advertiser (confirmation that proposal was sent)
+    const channelLink = channel.username ? `@${channel.username}` : channel.title;
+    await notifyUser(
+      user.telegramId,
+      `📤 <b>Deal proposal sent!</b>\n\n` +
+      `Channel: ${channelLink}\n` +
+      `Format: ${selectedFormat}\n` +
+      `Price: ${price.priceInTon} TON\n\n` +
+      `Deal #${deal.id}\n` +
+      `Waiting for the channel owner to accept.`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📋 Open Deal', web_app: { url: `${config.WEBAPP_URL}/deals/${deal.id}` } }],
+          ],
+        },
+      },
+    );
+
     return reply.status(201).send(deal);
   });
 
@@ -131,10 +150,13 @@ export async function dealRoutes(app: FastifyInstance) {
     const updatedDeal = await moveToPayment(dealId);
 
     // Notify ADVERTISER with escrow address (they always pay)
+    const acceptedChannelLink = deal.channel.username
+      ? `<a href="https://t.me/${deal.channel.username}">${deal.channel.title}</a>`
+      : deal.channel.title;
     await notifyUser(
       deal.advertiser.telegramId,
       `✅ <b>Deal accepted!</b>\n\nDeal #${dealId}\n` +
-      `Channel: ${deal.channel.title}\n` +
+      `Channel: ${acceptedChannelLink}\n` +
       `Price: ${deal.priceInTon} TON\n\n` +
       `Escrow address: <code>${updatedDeal.escrowAddress}</code>\n\n` +
       `Please send ${deal.priceInTon} TON to this address to proceed.`,
