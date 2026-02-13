@@ -47,21 +47,16 @@ export function PaymentPage() {
   if (!deal || !escrow) return <Placeholder description="Loading payment..." />;
 
   const isTestnet = appConfig?.tonNetwork !== 'mainnet';
-  const feeBuffer = appConfig?.networkFeeBuffer ?? 0.01;
   const currentBalance = escrow.currentBalance || 0;
   const hasPartialPayment = currentBalance > 0 && currentBalance < deal.priceInTon;
 
   // Calculate remaining amount (what the user still needs to send)
   const remaining = Math.max(0, deal.priceInTon - currentBalance);
   const payAmountTon = hasPartialPayment ? remaining : deal.priceInTon;
+  const payAmountNano = Math.round(payAmountTon * 1e9).toString();
 
-  // Add network fee buffer so escrow receives at least the deal price
-  // (TON forwarding fees deduct a tiny amount from each transfer)
-  const deepLinkAmount = payAmountTon + feeBuffer;
-  const deepLinkNano = Math.round(deepLinkAmount * 1e9).toString();
-
-  const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${deepLinkNano}&text=Deal%23${dealId}`;
-  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${deepLinkNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}`;
+  const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}`;
+  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}`;
 
   const copyAddress = () => {
     if (escrow.address) {
@@ -155,9 +150,6 @@ export function PaymentPage() {
               ? `Pay ${formatTon(payAmountTon)} TON`
               : 'Connect Wallet & Pay'}
           </Button>
-        </div>
-        <div style={{ padding: '0 16px 4px', fontSize: 12, color: 'var(--tg-theme-hint-color)', textAlign: 'center' }}>
-          Includes {formatTon(feeBuffer)} TON network fee
         </div>
         {wallet && (
           <div style={{ padding: '0 16px 8px' }}>

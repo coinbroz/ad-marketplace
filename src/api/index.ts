@@ -5,7 +5,7 @@ import { campaignRoutes } from './routes/campaigns.js';
 import { dealRoutes } from './routes/deals.js';
 import { requireAuth } from './middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
-import { config, NETWORK_FEE_BUFFER_TON } from '../config.js';
+import { config } from '../config.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   // Health check (no auth)
@@ -17,7 +17,6 @@ export async function registerRoutes(app: FastifyInstance) {
   // App config (public, needed by frontend for TON network)
   app.get('/api/config', async () => ({
     tonNetwork: config.TON_NETWORK,
-    networkFeeBuffer: NETWORK_FEE_BUFFER_TON,
   }));
 
   // Auth routes (no auth required)
