@@ -182,29 +182,15 @@ export function PaymentPage() {
             </div>
           </>
         ) : (
-          <>
-            <div style={{ padding: '0 16px 8px' }}>
-              <Button
-                size="l"
-                stretched
-                onClick={() => tonConnectUI.openModal()}
-              >
-                Connect Wallet
-              </Button>
-            </div>
-            <div style={{ padding: '0 16px 8px' }}>
-              <Button
-                size="l"
-                mode="outline"
-                stretched
-                onClick={openInWallet}
-              >
-                {paymentInitiated
-                  ? `Retry Payment · ${formatTon(payAmountTon)} TON`
-                  : `Pay via Tonkeeper`}
-              </Button>
-            </div>
-          </>
+          <div style={{ padding: '0 16px 8px' }}>
+            <Button
+              size="l"
+              stretched
+              onClick={() => tonConnectUI.openModal()}
+            >
+              Connect Wallet
+            </Button>
+          </div>
         )}
       </Section>
 
