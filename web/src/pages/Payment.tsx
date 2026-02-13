@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
@@ -17,6 +18,7 @@ export function PaymentPage() {
   const dealId = parseInt(id!, 10);
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
 
   const { data: deal } = useQuery({
     queryKey: ['deal', dealId],
@@ -67,6 +69,7 @@ export function PaymentPage() {
   };
 
   const openInWallet = () => {
+    setPaymentInitiated(true);
     const tg = window.Telegram?.WebApp as Record<string, unknown> | undefined;
     if (tg && typeof tg.openLink === 'function') {
       (tg.openLink as (url: string) => void)(tonkeeperUrl);
@@ -92,6 +95,32 @@ export function PaymentPage() {
 
   return (
     <div>
+      {/* Payment processing banner — shown after user clicked Pay */}
+      {paymentInitiated && !hasPartialPayment && (
+        <div style={{
+          padding: '16px',
+          background: '#007AFF15',
+          borderBottom: '2px solid #007AFF',
+        }}>
+          <div style={{
+            fontSize: 17,
+            fontWeight: 700,
+            color: '#007AFF',
+          }}>
+            Confirming payment...
+          </div>
+          <div style={{
+            fontSize: 14,
+            color: 'var(--tg-theme-hint-color)',
+            marginTop: 6,
+            lineHeight: 1.4,
+          }}>
+            Transaction sent to the blockchain. Confirmation usually takes 10–30 seconds.
+            This page will update automatically.
+          </div>
+        </div>
+      )}
+
       <Section header={headerText}>
         {hasPartialPayment && (
           <div style={{ padding: '8px 16px', fontSize: 13, color: 'var(--tg-theme-hint-color)' }}>
@@ -146,9 +175,11 @@ export function PaymentPage() {
             stretched
             onClick={handlePay}
           >
-            {wallet
-              ? `Pay ${formatTon(payAmountTon)} TON`
-              : 'Connect Wallet & Pay'}
+            {paymentInitiated
+              ? 'Pay Again (if previous failed)'
+              : wallet
+                ? `Pay ${formatTon(payAmountTon)} TON`
+                : 'Connect Wallet & Pay'}
           </Button>
         </div>
         {wallet && (
@@ -204,13 +235,33 @@ export function PaymentPage() {
         </div>
       </Section>
 
-      <Section>
-        <div style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, color: 'var(--tg-theme-hint-color)' }}>
-          Waiting for payment confirmation...
-          <br />
-          Page refreshes automatically.
-        </div>
-      </Section>
+      {!paymentInitiated && (
+        <Section>
+          <div style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, color: 'var(--tg-theme-hint-color)' }}>
+            Waiting for payment confirmation...
+            <br />
+            Page refreshes automatically.
+          </div>
+        </Section>
+      )}
+
+      {paymentInitiated && (
+        <Section>
+          <div style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, color: 'var(--tg-theme-hint-color)' }}>
+            Already paid but nothing happened?
+          </div>
+          <div style={{ padding: '0 16px 12px' }}>
+            <Button
+              size="s"
+              mode="outline"
+              stretched
+              onClick={() => setPaymentInitiated(false)}
+            >
+              Show payment details again
+            </Button>
+          </div>
+        </Section>
+      )}
     </div>
   );
 }

@@ -26,11 +26,15 @@ export async function submitCreativeConversation(
   }
 
   // Find active deals where user is channel owner and creative is needed
+  // For FUNDED deals, only show those where advertiser has already submitted a brief
   const deals = await conversation.external(() =>
     prisma.deal.findMany({
       where: {
         channelOwnerId: user.id,
-        status: { in: ['FUNDED', 'CREATIVE_DRAFT'] },
+        OR: [
+          { status: 'FUNDED', brief: { not: null } },
+          { status: 'CREATIVE_DRAFT' },
+        ],
       },
       include: {
         channel: { select: { title: true, username: true } },

@@ -140,7 +140,7 @@ export async function campaignRoutes(app: FastifyInstance) {
         initiatedBy: 'channel_owner',
         format: 'post',
         priceInTon,
-        brief: message || campaign.description,
+        // brief is NOT set here — it's submitted separately via /submitbrief after payment
         status: 'PENDING',
       },
     });

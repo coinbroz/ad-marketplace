@@ -89,7 +89,7 @@ export async function dealRoutes(app: FastifyInstance) {
       initiatedBy: 'advertiser',
       format: selectedFormat,
       priceInTon: price.priceInTon,
-      brief,
+      // brief is NOT set here — it's submitted separately via /submitbrief after payment
     });
 
     // Notify channel owner
