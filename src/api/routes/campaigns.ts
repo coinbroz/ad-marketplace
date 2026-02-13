@@ -119,7 +119,7 @@ export async function campaignRoutes(app: FastifyInstance) {
       where: {
         channelId,
         campaignId,
-        status: { notIn: ['CANCELLED', 'EXPIRED', 'REFUNDED'] },
+        status: { notIn: ['CANCELLED', 'EXPIRED', 'REFUNDED', 'COMPLETED'] },
       },
     });
 
