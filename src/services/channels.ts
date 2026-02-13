@@ -44,9 +44,28 @@ export async function addChannel(input: AddChannelInput) {
   // Check if channel already exists
   const existing = await prisma.channel.findUnique({
     where: { telegramId: chatInfo.id },
+    include: { prices: true },
   });
 
   if (existing) {
+    // If channel was deactivated (removed), reactivate it
+    if (!existing.isActive) {
+      const reactivated = await prisma.channel.update({
+        where: { id: existing.id },
+        data: {
+          isActive: true,
+          ownerId: input.ownerId,
+          botIsAdmin: botAdmin,
+          subscriberCount: chatInfo.memberCount,
+          title: chatInfo.title,
+          description: chatInfo.description,
+          username: chatInfo.username,
+          language: input.language || existing.language,
+        },
+        include: { prices: true },
+      });
+      return reactivated;
+    }
     throw new Error('Channel already registered');
   }
 
