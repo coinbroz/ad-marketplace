@@ -216,7 +216,7 @@ export async function dealRoutes(app: FastifyInstance) {
     const dealId = parseInt(id, 10);
 
     // Check if deal is in a funded state — trigger refund automatically
-    const FUNDED_STATUSES = ['FUNDED', 'CREATIVE_DRAFT', 'CREATIVE_REVIEW', 'CREATIVE_APPROVED', 'SCHEDULED'];
+    const FUNDED_STATUSES = ['FUNDED', 'CREATIVE_DRAFT', 'CREATIVE_REVIEW', 'CREATIVE_APPROVED', 'SCHEDULED', 'DISPUTED'];
     const currentDeal = await prisma.deal.findUniqueOrThrow({
       where: { id: dealId },
       include: {
