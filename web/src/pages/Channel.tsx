@@ -147,9 +147,11 @@ export function ChannelPage({ user }: Props) {
           <Cell
             subtitle="Username"
             onClick={() => {
-              const tg = window.Telegram?.WebApp;
+              const tg = window.Telegram?.WebApp as any;
               if (tg?.openTelegramLink) {
                 tg.openTelegramLink(`https://t.me/${channel.username}`);
+              } else {
+                window.open(`https://t.me/${channel.username}`, '_blank');
               }
             }}
           >
