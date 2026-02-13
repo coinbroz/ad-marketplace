@@ -25,12 +25,12 @@ export async function schedulePostConversation(
     return;
   }
 
-  // Find deals ready for publishing
+  // Find deals ready for publishing or already scheduled (for rescheduling)
   const deals = await conversation.external(() =>
     prisma.deal.findMany({
       where: {
         channelOwnerId: user.id,
-        status: 'CREATIVE_APPROVED',
+        status: { in: ['CREATIVE_APPROVED', 'SCHEDULED'] },
       },
       include: {
         channel: { select: { title: true, username: true } },
@@ -49,7 +49,11 @@ export async function schedulePostConversation(
   const keyboard: Array<Array<{ text: string }>> = [];
 
   for (const deal of deals) {
-    text += `#${deal.id} — ${deal.channel.title} (${deal.priceInTon} TON)\n`;
+    text += `#${deal.id} — ${deal.channel.title} (${deal.priceInTon} TON)`;
+    if (deal.status === 'SCHEDULED' && deal.scheduledAt) {
+      text += ` ⏰ ${deal.scheduledAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+    }
+    text += '\n';
     keyboard.push([{ text: `#${deal.id}` }]);
   }
   keyboard.push([{ text: 'Cancel' }]);
@@ -75,19 +79,20 @@ export async function schedulePostConversation(
   }
 
   // Ask when to publish
-  await ctx.reply(
-    `📅 <b>When to publish?</b>\n\n` +
-    `Deal #${dealId} — ${selectedDeal.channel.title}\n\n` +
-    `Send a date and time (e.g., "2026-02-15 14:00") or press "Now" for immediate publishing.`,
-    {
-      parse_mode: 'HTML',
-      reply_markup: {
-        keyboard: [[{ text: '🚀 Now' }], [{ text: 'Cancel' }]],
-        one_time_keyboard: true,
-        resize_keyboard: true,
-      },
+  const isReschedule = selectedDeal.status === 'SCHEDULED';
+  let whenText = isReschedule
+    ? `📅 <b>Reschedule post</b>\n\nDeal #${dealId} — ${selectedDeal.channel.title}\nCurrently scheduled for: ${selectedDeal.scheduledAt!.toISOString().replace('T', ' ').slice(0, 16)} UTC\n\n`
+    : `📅 <b>When to publish?</b>\n\nDeal #${dealId} — ${selectedDeal.channel.title}\n\n`;
+  whenText += `Send a new date and time in <b>UTC</b> timezone (e.g., "2026-02-15 14:00").\nOr press "Now" for immediate publishing.`;
+
+  await ctx.reply(whenText, {
+    parse_mode: 'HTML',
+    reply_markup: {
+      keyboard: [[{ text: '🚀 Now' }], [{ text: 'Cancel' }]],
+      one_time_keyboard: true,
+      resize_keyboard: true,
     },
-  );
+  });
 
   const timeResponse = await conversation.waitFor('message:text');
   const timeText = timeResponse.message.text;
@@ -131,11 +136,12 @@ export async function schedulePostConversation(
     try {
       await conversation.external(() => scheduleDeal(dealId, scheduledAt));
 
+      const actionWord = isReschedule ? 'rescheduled' : 'scheduled';
       await ctx.reply(
-        `📅 <b>Post scheduled!</b>\n\n` +
+        `📅 <b>Post ${actionWord}!</b>\n\n` +
         `Deal #${dealId}\n` +
         `Channel: ${selectedDeal.channel.title}\n` +
-        `Scheduled for: ${scheduledAt.toLocaleString()}\n\n` +
+        `Scheduled for: ${scheduledAt.toISOString().replace('T', ' ').slice(0, 16)} UTC\n\n` +
         `The post will be automatically published at the scheduled time.`,
         { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } },
       );
@@ -144,10 +150,10 @@ export async function schedulePostConversation(
       await conversation.external(() =>
         notifyUser(
           selectedDeal.advertiser.telegramId,
-          `📅 <b>Post scheduled</b>\n\n` +
+          `📅 <b>Post ${actionWord}</b>\n\n` +
           `Deal #${dealId}\n` +
           `Channel: ${selectedDeal.channel.title}\n` +
-          `Scheduled for: ${scheduledAt.toLocaleString()}`,
+          `Scheduled for: ${scheduledAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`,
         ),
       );
     } catch (err: unknown) {

@@ -301,6 +301,19 @@ export function DealPage({ user }: Props) {
         </div>
       )}
 
+      {deal.status === 'SCHEDULED' && isOwner && (
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+          borderRadius: 8,
+          margin: '0 16px 12px',
+          fontSize: 14,
+          color: 'var(--tg-theme-hint-color, #999)',
+        }}>
+          Post scheduled{deal.scheduledAt ? ` for ${new Date(deal.scheduledAt).toISOString().replace('T', ' ').slice(0, 16)} UTC` : ''}. To reschedule, send /schedulepost to the bot.
+        </div>
+      )}
+
       {deal.status === 'POSTED' && (
         <div style={{
           padding: '12px 16px',

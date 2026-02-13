@@ -72,7 +72,7 @@ bot.command('help', async (ctx) => {
     '/mycampaigns — View your campaigns\n' +
     '/submitbrief — Send your ad brief/materials (advertiser)\n' +
     '/submitcreative — Submit ad creative for a deal (channel owner)\n' +
-    '/schedulepost — Schedule or publish an approved post\n\n' +
+    '/schedulepost — Schedule, reschedule, or publish a post\n\n' +
     'Use the Mini App for full marketplace experience!',
   );
 });
