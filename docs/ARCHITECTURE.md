@@ -288,8 +288,8 @@ POSTED          → [VERIFIED, DISPUTED]
 VERIFIED        → [COMPLETED]
 COMPLETED       → [] (terminal)
 REFUNDED        → [] (terminal)
-CANCELLED       → [] (terminal)
-DISPUTED        → [REFUNDED, COMPLETED]
+CANCELLED       → [REFUNDED]  // refund for cancelled deals that had payment
+DISPUTED        → [CANCELLED, REFUNDED, COMPLETED]
 EXPIRED         → [] (terminal)
 ```
 

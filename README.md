@@ -9,6 +9,8 @@
 
 An MVP marketplace connecting Telegram channel owners with advertisers. Features escrow-style deals on TON blockchain, creative approval workflows, auto-posting, and post verification.
 
+**Live Demo:** [@channelescrow_bot](https://t.me/channelescrow_bot) — open the bot and tap "Open App" to launch the Mini App.
+
 ## Architecture
 
 ```
