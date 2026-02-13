@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { config } from '../../config.js';
+import { config, GAS_RESERVE_TON } from '../../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { verifyChannelAdmin, getDealChannelIds } from '../middleware/verify-admin.js';
 import {
@@ -257,27 +257,56 @@ export async function dealRoutes(app: FastifyInstance) {
       : deal.channelOwner.firstName;
 
     const isRefunded = deal.status === 'REFUNDED';
+    const refundSent = isRefunded && !!deal.refundAddress;
 
-    // Notify both parties
-    const cancelMsg = formatNotification({
+    // Build refund breakdown for the advertiser
+    const formatAmount = (n: number) => n.toFixed(4).replace(/\.?0+$/, '');
+    const refundAmount = Math.max(0, deal.priceInTon - GAS_RESERVE_TON);
+
+    // Advertiser notification
+    const advertiserLines: string[] = [`Cancelled by: ${cancellerName}`];
+    if (refundSent) {
+      advertiserLines.push(
+        '',
+        `✅ <b>Refund sent automatically</b>`,
+        `💰 Deal price: ${formatAmount(deal.priceInTon)} TON`,
+        `⛽ Gas reserve: −${formatAmount(GAS_RESERVE_TON)} TON`,
+        `📤 Refunded: ~${formatAmount(refundAmount)} TON`,
+        `📝 To: <code>${deal.refundAddress}</code>`,
+        '',
+        `<i>Network fee (~0.005 TON) is additionally deducted by the blockchain.</i>`,
+      );
+    }
+    const advertiserMsg = formatNotification({
       emoji: '🚫', title: 'Deal cancelled',
       dealId, channel: deal.channel.title, price: deal.priceInTon,
-      lines: [`Cancelled by: ${cancellerName}`],
+      lines: advertiserLines,
+      hint: refundSent
+        ? 'Funds have been returned to your wallet.'
+        : 'The deal has been cancelled.',
+    });
+
+    // Channel owner notification
+    const ownerLines: string[] = [`Cancelled by: ${cancellerName}`];
+    if (refundSent) {
+      ownerLines.push('', `🔄 Refund of ~${formatAmount(refundAmount)} TON sent to the advertiser.`);
+    }
+    const ownerMsg = formatNotification({
+      emoji: '🚫', title: 'Deal cancelled',
+      dealId, channel: deal.channel.title, price: deal.priceInTon,
+      lines: ownerLines,
       hint: 'The deal has been cancelled.',
     });
 
     await Promise.all([
-      notifyUser(deal.advertiser.telegramId, cancelMsg),
-      notifyUser(deal.channelOwner.telegramId, cancelMsg),
+      notifyUser(deal.advertiser.telegramId, advertiserMsg),
+      notifyUser(deal.channelOwner.telegramId, ownerMsg),
     ]);
 
     // Notify advertiser about refund address ONLY if refund couldn't be sent
-    // (no wallet address available). If refundAddress is set, refundFunds()
-    // already sent its own "Refund sent" notification with tx details.
     if (isRefunded && !deal.refundAddress) {
-      const advertiserTgId = deal.advertiser.telegramId;
       await notifyUser(
-        advertiserTgId,
+        deal.advertiser.telegramId,
         formatNotification({
           emoji: '🔄', title: 'Refund pending',
           dealId, channel: deal.channel.title, price: deal.priceInTon,
