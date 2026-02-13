@@ -446,11 +446,6 @@ export async function dealRoutes(app: FastifyInstance) {
         dealId, channel: deal.channel.title,
         hint: 'Send /schedulepost to publish the post in the channel.',
       }),
-      {
-        reply_markup: {
-          inline_keyboard: [[{ text: '📅 Schedule Post', callback_data: 'cmd_schedulepost' }]],
-        },
-      },
     );
 
     return deal;
@@ -472,11 +467,6 @@ export async function dealRoutes(app: FastifyInstance) {
         lines: [`<b>Comment:</b>`, body.comment],
         hint: 'Please update the creative and send /submitcreative.',
       }),
-      {
-        reply_markup: {
-          inline_keyboard: [[{ text: '🎨 Submit Creative', callback_data: 'cmd_submitcreative' }]],
-        },
-      },
     );
 
     return deal;

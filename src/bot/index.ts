@@ -220,23 +220,6 @@ bot.command('schedulepost', async (ctx) => {
   await ctx.conversation.enter('schedulePost');
 });
 
-// ── Callback query handlers (inline buttons in notifications) ──
-
-bot.callbackQuery('cmd_submitbrief', async (ctx) => {
-  await ctx.answerCallbackQuery();
-  await ctx.conversation.enter('submitBrief');
-});
-
-bot.callbackQuery('cmd_submitcreative', async (ctx) => {
-  await ctx.answerCallbackQuery();
-  await ctx.conversation.enter('submitCreative');
-});
-
-bot.callbackQuery('cmd_schedulepost', async (ctx) => {
-  await ctx.answerCallbackQuery();
-  await ctx.conversation.enter('schedulePost');
-});
-
 // ── Edited channel post handler (post edit detection) ──────
 
 bot.on('edited_channel_post', async (ctx) => {
