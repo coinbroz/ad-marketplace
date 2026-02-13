@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
-// TonConnect bridge is unreliable in Telegram WebView — payment uses deeplinks only
+import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { getDeal, getEscrowInfo, getAppConfig } from '../api/client';
 
@@ -12,11 +12,20 @@ function formatTon(amount: number): string {
   return amount.toFixed(4).replace(/\.?0+$/, '');
 }
 
+/** Shorten address for display */
+function shortAddr(addr: string): string {
+  if (addr.length <= 20) return addr;
+  return `${addr.slice(0, 6)}...${addr.slice(-6)}`;
+}
+
 export function PaymentPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const dealId = parseInt(id!, 10);
   const [paymentInitiated, setPaymentInitiated] = useState(false);
+
+  const wallet = useTonWallet();
+  const [tonConnectUI] = useTonConnectUI();
 
   const { data: deal } = useQuery({
     queryKey: ['deal', dealId],
@@ -55,10 +64,12 @@ export function PaymentPage() {
   const payAmountTon = hasPartialPayment ? remaining : deal.priceInTon;
   const payAmountNano = Math.round(payAmountTon * 1e9).toString();
 
-  // Include stateInit in deeplink to deploy escrow contract atomically with payment.
+  // QR code uses simple URL (without stateInit) to keep it scannable.
+  const qrUrl = `ton://transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}`;
+
+  // Deeplink button includes stateInit to deploy escrow contract atomically with payment.
   // This prevents bounce fees when TonKeeper sends to undeployed wallet.
   const initParam = escrow.stateInit ? `&init=${escrow.stateInit}` : '';
-  const tonTransferUrl = `ton://transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}${initParam}`;
   const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}${initParam}`;
 
   const copyAddress = () => {
@@ -77,13 +88,6 @@ export function PaymentPage() {
     } else {
       window.open(tonkeeperUrl, '_blank');
     }
-  };
-
-  const handlePay = () => {
-    // TonConnect bridge is unreliable in Telegram WebView
-    // (sendTransaction hangs with "Confirm in Tonkeeper" spinner).
-    // Always use deeplink — works reliably on all devices.
-    openInWallet();
   };
 
   const headerText = hasPartialPayment
@@ -127,7 +131,7 @@ export function PaymentPage() {
         )}
         <div style={{ textAlign: 'center', padding: '20px' }}>
           <div style={{ marginBottom: 16, fontSize: 14, color: 'var(--tg-theme-hint-color)' }}>
-            Scan QR or pay with connected wallet
+            Scan QR or pay with wallet below
           </div>
 
           <div style={{
@@ -137,7 +141,7 @@ export function PaymentPage() {
             borderRadius: 12,
           }}>
             <QRCodeSVG
-              value={tonTransferUrl}
+              value={qrUrl}
               size={200}
               level="M"
             />
@@ -145,18 +149,63 @@ export function PaymentPage() {
         </div>
       </Section>
 
-      <Section header="Pay with Wallet">
-        <div style={{ padding: '0 16px 8px' }}>
-          <Button
-            size="l"
-            stretched
-            onClick={handlePay}
-          >
-            {paymentInitiated
-              ? 'Pay Again (if previous failed)'
-              : `Pay ${formatTon(payAmountTon)} TON`}
-          </Button>
-        </div>
+      {/* Connected wallet info */}
+      <Section header="Wallet">
+        {wallet ? (
+          <>
+            <Cell
+              subtitle={shortAddr(wallet.account.address)}
+              after={
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    tonConnectUI.disconnect();
+                  }}
+                  style={{ color: '#FF3B30', fontSize: 13, cursor: 'pointer' }}
+                >
+                  Disconnect
+                </span>
+              }
+            >
+              {(wallet as { device?: { appName?: string } }).device?.appName || 'Connected Wallet'}
+            </Cell>
+            <div style={{ padding: '0 16px 8px' }}>
+              <Button
+                size="l"
+                stretched
+                onClick={openInWallet}
+              >
+                {paymentInitiated
+                  ? `Retry Payment · ${formatTon(payAmountTon)} TON`
+                  : `Pay ${formatTon(payAmountTon)} TON`}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ padding: '0 16px 8px' }}>
+              <Button
+                size="l"
+                stretched
+                onClick={() => tonConnectUI.openModal()}
+              >
+                Connect Wallet
+              </Button>
+            </div>
+            <div style={{ padding: '0 16px 8px' }}>
+              <Button
+                size="l"
+                mode="outline"
+                stretched
+                onClick={openInWallet}
+              >
+                {paymentInitiated
+                  ? `Retry Payment · ${formatTon(payAmountTon)} TON`
+                  : `Pay via Tonkeeper`}
+              </Button>
+            </div>
+          </>
+        )}
       </Section>
 
       <Section header="Escrow Address">
