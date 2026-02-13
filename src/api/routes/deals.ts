@@ -190,23 +190,22 @@ export async function dealRoutes(app: FastifyInstance) {
     const dealId = parseInt(id, 10);
     const deal = await cancelDeal(dealId, request.userId);
 
-    // Notify the other party
-    const otherTelegramId = request.userId === deal.advertiserId
-      ? deal.channelOwner.telegramId
-      : deal.advertiser.telegramId;
+    // Notify both parties
     const cancellerName = request.userId === deal.advertiserId
       ? deal.advertiser.firstName
       : deal.channelOwner.firstName;
 
-    await notifyUser(
-      otherTelegramId,
-      formatNotification({
-        emoji: '❌', title: 'Deal rejected',
-        dealId, channel: deal.channel.title,
-        lines: [`By: ${cancellerName}`],
-        hint: 'The deal proposal was rejected.',
-      }),
-    );
+    const rejectMsg = formatNotification({
+      emoji: '❌', title: 'Deal rejected',
+      dealId, channel: deal.channel.title,
+      lines: [`By: ${cancellerName}`],
+      hint: 'The deal proposal was rejected.',
+    });
+
+    await Promise.all([
+      notifyUser(deal.advertiser.telegramId, rejectMsg),
+      notifyUser(deal.channelOwner.telegramId, rejectMsg),
+    ]);
 
     return deal;
   });
@@ -253,26 +252,24 @@ export async function dealRoutes(app: FastifyInstance) {
       deal = await cancelDeal(dealId, request.userId);
     }
 
-    // Notify the other party
-    const otherTelegramId = request.userId === deal.advertiserId
-      ? deal.channelOwner.telegramId
-      : deal.advertiser.telegramId;
     const cancellerName = request.userId === deal.advertiserId
       ? deal.advertiser.firstName
       : deal.channelOwner.firstName;
 
     const isRefunded = deal.status === 'REFUNDED';
 
-    // Notify the other party
-    await notifyUser(
-      otherTelegramId,
-      formatNotification({
-        emoji: '🚫', title: 'Deal cancelled',
-        dealId, channel: deal.channel.title, price: deal.priceInTon,
-        lines: [`Cancelled by: ${cancellerName}`],
-        hint: 'The deal has been cancelled.',
-      }),
-    );
+    // Notify both parties
+    const cancelMsg = formatNotification({
+      emoji: '🚫', title: 'Deal cancelled',
+      dealId, channel: deal.channel.title, price: deal.priceInTon,
+      lines: [`Cancelled by: ${cancellerName}`],
+      hint: 'The deal has been cancelled.',
+    });
+
+    await Promise.all([
+      notifyUser(deal.advertiser.telegramId, cancelMsg),
+      notifyUser(deal.channelOwner.telegramId, cancelMsg),
+    ]);
 
     // Notify advertiser about refund address if payment was involved
     if (isRefunded) {
