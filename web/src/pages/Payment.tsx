@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
-import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
+// TonConnect bridge is unreliable in Telegram WebView — payment uses deeplinks only
 import { QRCodeSVG } from 'qrcode.react';
 import { getDeal, getEscrowInfo, getAppConfig } from '../api/client';
 
@@ -16,8 +16,6 @@ export function PaymentPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const dealId = parseInt(id!, 10);
-  const [tonConnectUI] = useTonConnectUI();
-  const wallet = useTonWallet();
   const [paymentInitiated, setPaymentInitiated] = useState(false);
 
   const { data: deal } = useQuery({
@@ -78,31 +76,10 @@ export function PaymentPage() {
     }
   };
 
-  const handlePay = async () => {
-    if (!wallet) {
-      await tonConnectUI.openModal();
-      return;
-    }
-
-    // Try TonConnect sendTransaction first (proper method, handles bounce correctly).
-    // Fall back to deeplink if bridge is unreliable in Telegram WebView.
-    try {
-      setPaymentInitiated(true);
-      await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 300, // 5 min
-        messages: [
-          {
-            address: escrow.address!,
-            amount: payAmountNano,
-          },
-        ],
-      });
-      return; // Transaction sent via TonConnect
-    } catch (err) {
-      console.warn('TonConnect sendTransaction failed, falling back to deeplink:', err);
-    }
-
-    // Fallback: open wallet via deeplink
+  const handlePay = () => {
+    // TonConnect bridge is unreliable in Telegram WebView
+    // (sendTransaction hangs with "Confirm in Tonkeeper" spinner).
+    // Always use deeplink — works reliably on all devices.
     openInWallet();
   };
 
@@ -166,26 +143,6 @@ export function PaymentPage() {
       </Section>
 
       <Section header="Pay with Wallet">
-        {wallet && (
-          <Cell
-            subtitle="Connected wallet"
-            after={
-              <Button
-                size="s"
-                mode="outline"
-                onClick={() => tonConnectUI.disconnect()}
-              >
-                Disconnect
-              </Button>
-            }
-          >
-            <span style={{ fontSize: 12, fontFamily: 'monospace' }}>
-              {wallet.account.address
-                ? `${wallet.account.address.slice(0, 6)}...${wallet.account.address.slice(-4)}`
-                : 'Connected'}
-            </span>
-          </Cell>
-        )}
         <div style={{ padding: '0 16px 8px' }}>
           <Button
             size="l"
@@ -194,23 +151,9 @@ export function PaymentPage() {
           >
             {paymentInitiated
               ? 'Pay Again (if previous failed)'
-              : wallet
-                ? `Pay ${formatTon(payAmountTon)} TON`
-                : 'Connect Wallet & Pay'}
+              : `Pay ${formatTon(payAmountTon)} TON`}
           </Button>
         </div>
-        {wallet && (
-          <div style={{ padding: '0 16px 8px' }}>
-            <Button
-              size="s"
-              mode="outline"
-              stretched
-              onClick={() => tonConnectUI.openModal()}
-            >
-              Switch Wallet
-            </Button>
-          </div>
-        )}
       </Section>
 
       <Section header="Escrow Address">
