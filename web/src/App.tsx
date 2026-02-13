@@ -127,9 +127,30 @@ function AppContent() {
                 WebkitTapHighlightColor: 'transparent',
               }}
             >
-              <span style={{ fontSize: 22 }}>
-                {tab.key === 'marketplace' ? '🏪' : tab.key === 'deals' ? '🤝' : '👤'}
-              </span>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                {tab.key === 'marketplace' ? (
+                  // Storefront icon
+                  <>
+                    <path d="M3 9l1.5-5h15L21 9" />
+                    <path d="M3 9h18v1a3 3 0 01-3 3 3 3 0 01-3-3 3 3 0 01-3 3 3 3 0 01-3-3 3 3 0 01-3 3 3 3 0 01-3-3V9z" />
+                    <path d="M5 13v7a1 1 0 001 1h12a1 1 0 001-1v-7" />
+                    <path d="M10 21v-6h4v6" />
+                  </>
+                ) : tab.key === 'deals' ? (
+                  // Document with checkmark icon
+                  <>
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <path d="M9 15l2 2 4-4" />
+                  </>
+                ) : (
+                  // Person icon
+                  <>
+                    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </>
+                )}
+              </svg>
               {tab.label}
             </button>
           ))}
