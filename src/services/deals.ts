@@ -259,7 +259,13 @@ export async function cancelDeal(dealId: number, userId: number) {
  * Schedule a post for a specific time.
  */
 export async function scheduleDeal(dealId: number, scheduledAt: Date) {
-  return transitionDeal(dealId, 'SCHEDULED', { scheduledAt });
+  const deal = await transitionDeal(dealId, 'SCHEDULED', { scheduledAt });
+
+  // Add BullMQ job to publish at the scheduled time
+  const { schedulePublishJob } = await import('../workers/scheduled-publisher.js');
+  await schedulePublishJob(dealId, scheduledAt);
+
+  return deal;
 }
 
 /**

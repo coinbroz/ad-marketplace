@@ -12,11 +12,17 @@ export const scheduledPublisherQueue = new Queue(QUEUE_NAME, {
 export const scheduledPublisherWorker = new Worker(
   QUEUE_NAME,
   async (job) => {
-    const { dealId } = job.data as { dealId: number };
+    const { dealId, scheduledAt } = job.data as { dealId: number; scheduledAt?: string };
 
     const deal = await prisma.deal.findUnique({ where: { id: dealId } });
     if (!deal || deal.status !== 'SCHEDULED') {
       console.log(`Skipping scheduled publish for deal ${dealId}: status is ${deal?.status}`);
+      return;
+    }
+
+    // If deal was rescheduled, ignore stale jobs
+    if (scheduledAt && deal.scheduledAt && deal.scheduledAt.toISOString() !== scheduledAt) {
+      console.log(`Skipping stale publish job for deal ${dealId}: rescheduled`);
       return;
     }
 
@@ -38,12 +44,12 @@ scheduledPublisherWorker.on('failed', (job, err) => {
  */
 export async function schedulePublishJob(dealId: number, publishAt: Date) {
   const delay = publishAt.getTime() - Date.now();
+  const jobData = { dealId, scheduledAt: publishAt.toISOString() };
 
   if (delay <= 0) {
-    // Publish immediately
-    await scheduledPublisherQueue.add('publish', { dealId });
+    await scheduledPublisherQueue.add('publish', jobData);
   } else {
-    await scheduledPublisherQueue.add('publish', { dealId }, { delay });
+    await scheduledPublisherQueue.add('publish', jobData, { delay });
   }
 
   console.log(`Scheduled publish for deal ${dealId} at ${publishAt.toISOString()} (delay: ${Math.round(delay / 1000)}s)`);
