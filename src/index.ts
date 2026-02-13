@@ -144,11 +144,10 @@ async function main() {
     { command: 'start', description: 'Open the marketplace' },
     { command: 'mydeals', description: 'View your active deals' },
     { command: 'addchannel', description: 'Add your channel to marketplace' },
-    { command: 'mycampaigns', description: 'View your campaigns' },
-    { command: 'submitbrief', description: 'Send ad brief/materials (advertiser)' },
-    { command: 'submitcreative', description: 'Submit ad creative (channel owner)' },
-    { command: 'schedulepost', description: 'Schedule or publish approved post' },
-    { command: 'help', description: 'Show help message' },
+    { command: 'submitbrief', description: 'Send ad brief (advertiser)' },
+    { command: 'submitcreative', description: 'Submit creative (channel owner)' },
+    { command: 'schedulepost', description: 'Schedule/publish post' },
+    { command: 'help', description: 'Show help' },
   ]);
 
   // ── Start Server ───────────────────────────────────────

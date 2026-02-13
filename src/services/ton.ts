@@ -424,8 +424,13 @@ export async function refundFunds(dealId: number): Promise<string | null> {
 
   const ownerRefundMsg = formatNotification({
     emoji: '🔄', title: 'Refund processed',
-    dealId, channel: deal.channel.title, price: refundTonStr,
-    lines: txLine ? [txLine] : [],
+    dealId, channel: deal.channel.title,
+    lines: [
+      `💰 Deal price: ${dealPriceStr} TON`,
+      `⛽ Gas reserve: −${gasReserveStr} TON`,
+      `📤 Refunded: ${refundTonStr} TON`,
+      ...(txLine ? ['', txLine] : []),
+    ],
   });
 
   await Promise.all([
