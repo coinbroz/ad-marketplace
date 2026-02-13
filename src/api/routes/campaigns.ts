@@ -75,7 +75,7 @@ export async function campaignRoutes(app: FastifyInstance) {
     // Verify channel belongs to this user
     const channel = await prisma.channel.findUniqueOrThrow({
       where: { id: channelId },
-      include: { prices: true },
+      include: { prices: true, owner: { select: { telegramId: true, firstName: true } } },
     });
 
     // Check ownership or manager role
@@ -172,6 +172,28 @@ export async function campaignRoutes(app: FastifyInstance) {
           ...(message ? [`Message: ${message}`] : []),
         ],
         hint: 'Open the deal to accept or reject.',
+      }),
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📋 Open Deal', web_app: { url: `${config.WEBAPP_URL}/deals/${deal.id}` } }],
+          ],
+        },
+      },
+    );
+
+    // Notify channel owner (confirmation that application was sent)
+    await notifyUser(
+      channel.owner.telegramId,
+      formatNotification({
+        emoji: '📤', title: 'Application sent',
+        dealId: deal.id, channel: channel.title,
+        price: priceInTon,
+        lines: [
+          `Campaign: ${campaign.title}`,
+          `Advertiser: ${campaign.advertiser.firstName}`,
+        ],
+        hint: 'Waiting for the advertiser to accept.',
       }),
       {
         reply_markup: {
