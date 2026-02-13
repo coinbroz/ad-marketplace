@@ -265,7 +265,7 @@ export async function dealRoutes(app: FastifyInstance) {
 
     // Advertiser notification
     const advertiserLines: string[] = [`Cancelled by: ${cancellerName}`];
-    const BLOCKCHAIN_FEE_ESTIMATE = 0.005;
+    const BLOCKCHAIN_FEE_ESTIMATE = 0.0004;
     if (refundSent) {
       const receiveEstimate = Math.max(0, refundAmount - BLOCKCHAIN_FEE_ESTIMATE);
       advertiserLines.push(

@@ -397,7 +397,7 @@ export async function refundFunds(dealId: number): Promise<string | null> {
 
   const dealPriceStr = formatTon(deal.priceInTon);
   const gasReserveStr = formatTon(GAS_RESERVE_TON);
-  const blockchainFeeEstimate = 0.005;
+  const blockchainFeeEstimate = 0.0004;
   const receiveEstimate = Math.max(0, Number(refundTonStr) - blockchainFeeEstimate);
   const breakdownLines = [
     `💰 Deal price: ${dealPriceStr} TON`,
