@@ -28,6 +28,7 @@ export function ChannelPage({ user }: Props) {
   const [languageInput, setLanguageInput] = useState('');
   const [editingLanguage, setEditingLanguage] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<string>('post');
+  const [showFullDesc, setShowFullDesc] = useState(false);
 
   const { data: channel, isLoading, error } = useQuery({
     queryKey: ['channel', id],
@@ -143,10 +144,37 @@ export function ChannelPage({ user }: Props) {
       {/* Channel Info */}
       <Section header={channel.title}>
         {channel.username && (
-          <Cell subtitle="Username">@{channel.username}</Cell>
+          <Cell
+            subtitle="Username"
+            onClick={() => {
+              const tg = window.Telegram?.WebApp;
+              if (tg?.openTelegramLink) {
+                tg.openTelegramLink(`https://t.me/${channel.username}`);
+              }
+            }}
+          >
+            @{channel.username} →
+          </Cell>
         )}
         {channel.description && (
-          <Cell subtitle="Description">{channel.description}</Cell>
+          <Cell
+            subtitle="Description"
+            multiline
+            onClick={() => setShowFullDesc(!showFullDesc)}
+          >
+            {showFullDesc ? (
+              channel.description
+            ) : (
+              <span style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical' as const,
+                overflow: 'hidden',
+              }}>
+                {channel.description}
+              </span>
+            )}
+          </Cell>
         )}
       </Section>
 
