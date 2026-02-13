@@ -34,6 +34,7 @@ export async function submitCreativeConversation(
         channelOwnerId: user.id,
         OR: [
           { status: 'FUNDED', brief: { not: null } },
+          { status: 'FUNDED', briefMediaFileId: { not: null } },
           { status: 'CREATIVE_DRAFT' },
         ],
       },
