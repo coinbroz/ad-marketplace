@@ -365,10 +365,11 @@ export async function refundFunds(dealId: number): Promise<string | null> {
     txHash = `refund_awaiting_address_${dealId}_${Date.now()}`;
   }
 
-  // Update deal
+  // Update deal — also persist the refund address so UI knows where funds went
   await transitionDeal(dealId, 'REFUNDED', {
     refundTxHash: txHash,
     refundedAt: new Date(),
+    ...(isValidTonAddress(refundToAddress) && !deal.refundAddress ? { refundAddress: refundToAddress } : {}),
   });
 
   const refundTonStr = formatTon(fromNano(refundAmount));

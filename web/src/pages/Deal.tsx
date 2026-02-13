@@ -502,6 +502,23 @@ function RefundAddressSection({ dealId, deal, escrow, queryClient }: {
     }
   };
 
+  // Refund already completed — show success, no editing allowed
+  if (isCompleted) {
+    return (
+      <Section header="Refund">
+        {deal.refundAddress && <Cell subtitle="Refund address">{deal.refundAddress}</Cell>}
+        {deal.refundMemo && <Cell subtitle="Memo">{deal.refundMemo}</Cell>}
+        <Cell subtitle="Amount">{deal.priceInTon} TON</Cell>
+        <div style={{ padding: '8px 16px', fontSize: 13, color: '#34C759' }}>
+          Refund sent successfully.
+          {escrow?.refundTx && (
+            <> <a href={escrow.refundTx} target="_blank" rel="noreferrer" style={{ color: '#007AFF' }}>View on Explorer</a></>
+          )}
+        </div>
+      </Section>
+    );
+  }
+
   // Address already saved — show status + retry/edit buttons
   if (deal.refundAddress && !editing) {
     return (
@@ -509,15 +526,6 @@ function RefundAddressSection({ dealId, deal, escrow, queryClient }: {
         <Cell subtitle="Refund address">{deal.refundAddress}</Cell>
         {deal.refundMemo && <Cell subtitle="Memo">{deal.refundMemo}</Cell>}
         <Cell subtitle="Amount">{deal.priceInTon} TON</Cell>
-
-        {isCompleted && (
-          <div style={{ padding: '8px 16px', fontSize: 13, color: '#34C759' }}>
-            Refund sent successfully.
-            {escrow?.refundTx && (
-              <> <a href={escrow.refundTx} target="_blank" rel="noreferrer" style={{ color: '#007AFF' }}>View on Explorer</a></>
-            )}
-          </div>
-        )}
 
         {isPending && (
           <>
@@ -535,7 +543,7 @@ function RefundAddressSection({ dealId, deal, escrow, queryClient }: {
           </>
         )}
 
-        {!isCompleted && !isPending && (
+        {!isPending && (
           <div style={{ padding: '8px 16px', fontSize: 13, color: 'var(--tg-theme-hint-color, #999)' }}>
             Refund will be processed to this address.
           </div>

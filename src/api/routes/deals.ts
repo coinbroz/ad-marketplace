@@ -271,8 +271,10 @@ export async function dealRoutes(app: FastifyInstance) {
       notifyUser(deal.channelOwner.telegramId, cancelMsg),
     ]);
 
-    // Notify advertiser about refund address if payment was involved
-    if (isRefunded) {
+    // Notify advertiser about refund address ONLY if refund couldn't be sent
+    // (no wallet address available). If refundAddress is set, refundFunds()
+    // already sent its own "Refund sent" notification with tx details.
+    if (isRefunded && !deal.refundAddress) {
       const advertiserTgId = deal.advertiser.telegramId;
       await notifyUser(
         advertiserTgId,
