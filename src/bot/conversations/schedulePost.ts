@@ -4,6 +4,7 @@ import { prisma } from '../../lib/prisma.js';
 import { scheduleDeal, transitionDeal } from '../../services/deals.js';
 import { publishPost } from '../../services/posting.js';
 import { notifyUser, formatNotification } from '../../services/telegram.js';
+import { preselectedDeals } from '../state.js';
 
 /**
  * Grammy conversation: schedule or immediately publish an approved post.
@@ -44,40 +45,54 @@ export async function schedulePostConversation(
     return;
   }
 
-  // List deals (inline keyboard — always visible in the message)
-  let text = '📅 <b>Schedule post — select a deal:</b>\n\n';
-  const inlineKeyboard: Array<Array<{ text: string; callback_data: string }>> = [];
-
-  for (const deal of deals) {
-    text += `#${deal.id} — ${deal.channel.title} (${deal.priceInTon} TON)`;
-    if (deal.status === 'SCHEDULED' && deal.scheduledAt) {
-      text += ` ⏰ ${deal.scheduledAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`;
-    }
-    text += '\n';
-    inlineKeyboard.push([{ text: `#${deal.id} — ${deal.channel.title}`, callback_data: `sched_${deal.id}` }]);
-  }
-  inlineKeyboard.push([{ text: '❌ Cancel', callback_data: 'sched_cancel' }]);
-
-  await ctx.reply(text, {
-    parse_mode: 'HTML',
-    reply_markup: { inline_keyboard: inlineKeyboard },
+  // Check for preselected deal from deep link (Mini App → bot)
+  const preselectedId = await conversation.external(() => {
+    const id = preselectedDeals.get(telegramId!);
+    if (id !== undefined) preselectedDeals.delete(telegramId!);
+    return id ?? null;
   });
 
-  // Wait for deal selection (inline button tap)
-  const response = await conversation.waitFor('callback_query:data');
-  await response.answerCallbackQuery();
+  let dealId: number;
+  let selectedDeal = preselectedId ? deals.find((d) => d.id === preselectedId) : null;
 
-  if (response.callbackQuery.data === 'sched_cancel') {
-    await ctx.reply('Cancelled.');
-    return;
-  }
+  if (selectedDeal) {
+    dealId = preselectedId!;
+  } else {
+    // List deals (inline keyboard — always visible in the message)
+    let text = '📅 <b>Schedule post — select a deal:</b>\n\n';
+    const inlineKeyboard: Array<Array<{ text: string; callback_data: string }>> = [];
 
-  const dealId = parseInt(response.callbackQuery.data.replace('sched_', ''), 10);
-  const selectedDeal = deals.find((d) => d.id === dealId);
+    for (const deal of deals) {
+      text += `#${deal.id} — ${deal.channel.title} (${deal.priceInTon} TON)`;
+      if (deal.status === 'SCHEDULED' && deal.scheduledAt) {
+        text += ` ⏰ ${deal.scheduledAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+      }
+      text += '\n';
+      inlineKeyboard.push([{ text: `#${deal.id} — ${deal.channel.title}`, callback_data: `sched_${deal.id}` }]);
+    }
+    inlineKeyboard.push([{ text: '❌ Cancel', callback_data: 'sched_cancel' }]);
 
-  if (!selectedDeal) {
-    await ctx.reply('Invalid deal.');
-    return;
+    await ctx.reply(text, {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: inlineKeyboard },
+    });
+
+    // Wait for deal selection (inline button tap)
+    const response = await conversation.waitFor('callback_query:data');
+    await response.answerCallbackQuery();
+
+    if (response.callbackQuery.data === 'sched_cancel') {
+      await ctx.reply('Cancelled.');
+      return;
+    }
+
+    dealId = parseInt(response.callbackQuery.data.replace('sched_', ''), 10);
+    selectedDeal = deals.find((d) => d.id === dealId) ?? null;
+
+    if (!selectedDeal) {
+      await ctx.reply('Invalid deal.');
+      return;
+    }
   }
 
   // Ask when to publish (inline buttons + accept text for custom date)

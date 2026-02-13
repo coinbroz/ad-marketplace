@@ -8,6 +8,7 @@ import { submitBriefConversation } from './conversations/submitBrief.js';
 import { submitCreativeConversation } from './conversations/submitCreative.js';
 import { schedulePostConversation } from './conversations/schedulePost.js';
 import crypto from 'node:crypto';
+import { preselectedDeals } from './state.js';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -47,15 +48,19 @@ bot.catch((err) => {
 // ── Commands ───────────────────────────────────────────────
 
 bot.command('start', async (ctx) => {
-  // Deep link support: /start submitbrief → enter submitBrief conversation
+  // Deep link support: /start submitbrief_123 → enter conversation with preselected deal
   const param = ctx.match?.trim().toLowerCase();
+  const match = param?.match(/^(submitbrief|submitcreative|schedulepost)(?:_(\d+))?$/);
   const conversationMap: Record<string, string> = {
     submitbrief: 'submitBrief',
     submitcreative: 'submitCreative',
     schedulepost: 'schedulePost',
   };
-  if (param && conversationMap[param]) {
-    await ctx.conversation.enter(conversationMap[param]);
+  if (match && conversationMap[match[1]]) {
+    if (match[2] && ctx.from?.id) {
+      preselectedDeals.set(ctx.from.id, parseInt(match[2], 10));
+    }
+    await ctx.conversation.enter(conversationMap[match[1]]);
     return;
   }
 

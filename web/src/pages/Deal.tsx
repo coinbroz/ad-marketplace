@@ -97,14 +97,15 @@ export function DealPage({ user }: Props) {
     staleTime: Infinity,
   });
 
-  /** Open the bot with a specific command via deep link */
+  /** Open the bot with a specific command via deep link, passing the current deal ID */
   const openBotCommand = (command: string) => {
     const username = appConfig?.botUsername;
     if (!username) return;
-    const url = `https://t.me/${username}?start=${command}`;
+    const url = `https://t.me/${username}?start=${command}_${dealId}`;
     const tg = window.Telegram?.WebApp;
     if (tg?.openTelegramLink) {
       tg.openTelegramLink(url);
+      tg.close();
     } else {
       window.open(url, '_blank');
     }

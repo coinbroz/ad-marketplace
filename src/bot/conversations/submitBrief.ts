@@ -2,6 +2,7 @@ import type { Context } from 'grammy';
 import type { Conversation } from '@grammyjs/conversations';
 import { prisma } from '../../lib/prisma.js';
 import { notifyUser, formatNotification } from '../../services/telegram.js';
+import { preselectedDeals } from '../state.js';
 
 /**
  * Grammy conversation: advertiser submits ad brief/materials for a deal.
@@ -43,42 +44,56 @@ export async function submitBriefConversation(
     return;
   }
 
-  // List deals for selection (inline keyboard — always visible in the message)
-  let dealListText = '📋 <b>Select a deal to submit your ad brief:</b>\n\n';
-  const inlineKeyboard: Array<Array<{ text: string; callback_data: string }>> = [];
-
-  for (const deal of deals) {
-    dealListText += `#${deal.id} — ${deal.channel.title} (${deal.priceInTon} TON)\n`;
-    if (deal.brief) {
-      dealListText += `  Current brief: ${deal.brief.slice(0, 50)}...\n`;
-    }
-    dealListText += '\n';
-    inlineKeyboard.push([{ text: `#${deal.id} — ${deal.channel.title}`, callback_data: `brief_${deal.id}` }]);
-  }
-
-  inlineKeyboard.push([{ text: '❌ Cancel', callback_data: 'brief_cancel' }]);
-
-  await ctx.reply(dealListText, {
-    parse_mode: 'HTML',
-    reply_markup: { inline_keyboard: inlineKeyboard },
+  // Check for preselected deal from deep link (Mini App → bot)
+  const preselectedId = await conversation.external(() => {
+    const id = preselectedDeals.get(telegramId!);
+    if (id !== undefined) preselectedDeals.delete(telegramId!);
+    return id ?? null;
   });
 
-  // Wait for deal selection (inline button tap)
-  const dealResponse = await conversation.waitFor('callback_query:data');
-  await dealResponse.answerCallbackQuery();
-  const dealCallback = dealResponse.callbackQuery.data;
+  let dealId: number;
+  let selectedDeal = preselectedId ? deals.find((d) => d.id === preselectedId) : null;
 
-  if (dealCallback === 'brief_cancel') {
-    await ctx.reply('Cancelled.');
-    return;
-  }
+  if (selectedDeal) {
+    dealId = preselectedId!;
+  } else {
+    // List deals for selection (inline keyboard — always visible in the message)
+    let dealListText = '📋 <b>Select a deal to submit your ad brief:</b>\n\n';
+    const inlineKeyboard: Array<Array<{ text: string; callback_data: string }>> = [];
 
-  const dealId = parseInt(dealCallback.replace('brief_', ''), 10);
-  const selectedDeal = deals.find((d) => d.id === dealId);
+    for (const deal of deals) {
+      dealListText += `#${deal.id} — ${deal.channel.title} (${deal.priceInTon} TON)\n`;
+      if (deal.brief) {
+        dealListText += `  Current brief: ${deal.brief.slice(0, 50)}...\n`;
+      }
+      dealListText += '\n';
+      inlineKeyboard.push([{ text: `#${deal.id} — ${deal.channel.title}`, callback_data: `brief_${deal.id}` }]);
+    }
 
-  if (!selectedDeal) {
-    await ctx.reply('Invalid deal. Please try again.');
-    return;
+    inlineKeyboard.push([{ text: '❌ Cancel', callback_data: 'brief_cancel' }]);
+
+    await ctx.reply(dealListText, {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: inlineKeyboard },
+    });
+
+    // Wait for deal selection (inline button tap)
+    const dealResponse = await conversation.waitFor('callback_query:data');
+    await dealResponse.answerCallbackQuery();
+    const dealCallback = dealResponse.callbackQuery.data;
+
+    if (dealCallback === 'brief_cancel') {
+      await ctx.reply('Cancelled.');
+      return;
+    }
+
+    dealId = parseInt(dealCallback.replace('brief_', ''), 10);
+    selectedDeal = deals.find((d) => d.id === dealId) ?? null;
+
+    if (!selectedDeal) {
+      await ctx.reply('Invalid deal. Please try again.');
+      return;
+    }
   }
 
   // Ask for brief content
