@@ -240,7 +240,7 @@ export async function submitCreativeConversation(
         {
           reply_markup: {
             inline_keyboard: [
-              [{ text: '📋 Open Deal', web_app: { url: `${(await import('../../config.js')).config.WEBAPP_URL}` } }],
+              [{ text: '📋 Open Deal', web_app: { url: `${(await import('../../config.js')).config.WEBAPP_URL}/deals/${dealId}` } }],
             ],
           },
         },

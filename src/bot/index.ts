@@ -127,7 +127,7 @@ bot.command('mydeals', async (ctx) => {
     parse_mode: 'HTML',
     reply_markup: {
       inline_keyboard: [
-        [{ text: '📋 View in App', web_app: { url: config.WEBAPP_URL } }],
+        [{ text: '📋 View in App', web_app: { url: `${config.WEBAPP_URL}/deals` } }],
       ],
     },
   });
