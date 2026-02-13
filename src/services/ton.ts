@@ -12,17 +12,13 @@ import { config, GAS_RESERVE_TON, TON_ENDPOINT } from '../config.js';
 import { transitionDeal } from './deals.js';
 import { notifyUser } from './telegram.js';
 
-// Payment tolerance: accept payments within 0.01 TON of required amount.
-// Covers TON message forwarding fees and minor rounding differences.
-const PAYMENT_TOLERANCE = toNano(0.01);
-
 /**
  * Format TON amounts to a clean string (no scientific notation, trim trailing zeros).
  */
 function formatTon(amount: number): string {
   if (amount <= 0) return '0';
-  // Use fixed 4 decimals, then trim trailing zeros
-  return amount.toFixed(4).replace(/\.?0+$/, '');
+  // Full nanoTON precision (9 decimals), trim trailing zeros — no rounding
+  return amount.toFixed(9).replace(/\.?0+$/, '');
 }
 
 /**
@@ -88,8 +84,8 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
   const balance = await getWalletBalance(deal.escrowAddress);
   const requiredAmount = toNano(deal.priceInTon);
 
-  if (balance >= requiredAmount - PAYMENT_TOLERANCE) {
-    // Payment received (full or within tolerance) — get incoming transaction hash
+  if (balance >= requiredAmount) {
+    // Payment received — get incoming transaction hash
     const txHash = await getLatestIncomingTxHash(deal.escrowAddress, requiredAmount);
 
     await transitionDeal(dealId, 'FUNDED', {
@@ -251,11 +247,17 @@ export async function releaseFunds(dealId: number): Promise<string | null> {
     },
   });
 
-  // Notify both parties
+  // Notify both parties with fee breakdown
   const txLine = isRealTxHash(txHash)
     ? `\n🔗 <a href="${txExplorerUrl(txHash)}">View transaction on TON Explorer</a>`
     : '';
-  const payoutMsg = `✅ <b>Payout completed!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${formatTon(fromNano(ownerAmount))} TON${txLine}`;
+  const dealPriceStr = formatTon(deal.priceInTon);
+  const gasReserveStr = formatTon(GAS_RESERVE_TON);
+  const sentStr = formatTon(fromNano(ownerAmount));
+  const feeLine = feeAmount > 0n
+    ? `\n💼 Platform fee (${feePercent}%): −${formatTon(fromNano(feeAmount))} TON`
+    : '';
+  const payoutMsg = `✅ <b>Payout completed!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\n\n💰 Deal price: ${dealPriceStr} TON${feeLine}\n⛽ Gas reserve: −${gasReserveStr} TON\n📤 Sent from escrow: ${sentStr} TON\n\n<i>Blockchain fee (~0.004 TON) is deducted by the network.</i>${txLine}`;
 
   await Promise.all([
     notifyUser(deal.channelOwner.telegramId, payoutMsg),
@@ -305,21 +307,12 @@ export async function refundFunds(dealId: number): Promise<string | null> {
     tag: deal.escrowWallet.secretKeyTag,
   });
 
-  // Use deal price for clean amounts (e.g. 0.45 TON instead of 0.449999999)
+  // Calculate refund: deal price minus gas reserve, with balance safety check
   const gasReserve = toNano(GAS_RESERVE_TON);
   const dealAmountNano = toNano(deal.priceInTon);
+  let refundAmount = dealAmountNano > gasReserve ? dealAmountNano - gasReserve : dealAmountNano;
 
-  // If balance is close to deal price, use deal price for clean math
-  const diff = balance > dealAmountNano ? balance - dealAmountNano : dealAmountNano - balance;
-  let refundAmount: bigint;
-  if (diff <= PAYMENT_TOLERANCE) {
-    refundAmount = dealAmountNano > gasReserve ? dealAmountNano - gasReserve : dealAmountNano;
-  } else {
-    // Significant over/underpayment — use actual balance
-    refundAmount = balance > gasReserve ? balance - gasReserve : balance;
-  }
-
-  // Safety: ensure escrow actually has enough
+  // Safety: if escrow has less than needed, fall back to balance-based calc
   if (balance < refundAmount) {
     refundAmount = balance > gasReserve ? balance - gasReserve : balance;
   }
@@ -362,20 +355,24 @@ export async function refundFunds(dealId: number): Promise<string | null> {
     },
   });
 
-  // Notify both parties
+  // Notify both parties with fee breakdown
   const hasRealAddress = isValidTonAddress(refundToAddress);
   const hasRealTx = isRealTxHash(txHash);
   const txLine = hasRealTx
     ? `\n🔗 <a href="${txExplorerUrl(txHash)}">View transaction on TON Explorer</a>`
     : '';
 
+  const dealPriceStr = formatTon(deal.priceInTon);
+  const gasReserveStr = formatTon(GAS_RESERVE_TON);
+  const breakdownLines = `\n\n💰 Deal price: ${dealPriceStr} TON\n⛽ Gas reserve: −${gasReserveStr} TON\n📤 Sent from escrow: ${refundTonStr} TON\n\n<i>Blockchain fee (~0.004 TON) is deducted by the network.</i>`;
+
   let refundMsg: string;
   if (hasRealAddress && hasRealTx) {
-    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${refundTonStr} TON\nTo: <code>${refundToAddress}</code>${txLine}`;
+    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}${breakdownLines}\n\nTo: <code>${refundToAddress}</code>${txLine}`;
   } else if (hasRealAddress) {
-    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${refundTonStr} TON\nTo: <code>${refundToAddress}</code>\n\n⏳ Transaction is being processed on the blockchain.`;
+    refundMsg = `🔄 <b>Refund sent!</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}${breakdownLines}\n\nTo: <code>${refundToAddress}</code>\n\n⏳ Transaction is being processed on the blockchain.`;
   } else {
-    refundMsg = `🔄 <b>Refund initiated</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}\nAmount: ${refundTonStr} TON\n\n📝 Please open the deal in Mini App and enter your refund wallet address.`;
+    refundMsg = `🔄 <b>Refund initiated</b>\n\nDeal #${dealId}\nChannel: ${deal.channel.title}${breakdownLines}\n\n📝 Please open the deal in Mini App and enter your refund wallet address.`;
   }
 
   await Promise.all([
@@ -434,16 +431,10 @@ export async function executePendingRefund(dealId: number): Promise<string | nul
     tag: deal.escrowWallet.secretKeyTag,
   });
 
-  // Use deal price for clean amounts when balance is close to deal price
+  // Calculate refund: deal price minus gas reserve, with balance safety check
   const gasReserve = toNano(GAS_RESERVE_TON);
   const dealAmountNano = toNano(deal.priceInTon);
-  const diff = balance > dealAmountNano ? balance - dealAmountNano : dealAmountNano - balance;
-  let refundAmount: bigint;
-  if (diff <= PAYMENT_TOLERANCE) {
-    refundAmount = dealAmountNano > gasReserve ? dealAmountNano - gasReserve : dealAmountNano;
-  } else {
-    refundAmount = balance > gasReserve ? balance - gasReserve : balance;
-  }
+  let refundAmount = dealAmountNano > gasReserve ? dealAmountNano - gasReserve : dealAmountNano;
   if (balance < refundAmount) {
     refundAmount = balance > gasReserve ? balance - gasReserve : balance;
   }
@@ -482,9 +473,12 @@ export async function executePendingRefund(dealId: number): Promise<string | nul
     });
 
     const txLine = `\n🔗 <a href="${txExplorerUrl(onChainHash)}">View transaction on TON Explorer</a>`;
+    const refundStr = formatTon(fromNano(refundAmount));
+    const dealPriceStr = formatTon(deal.priceInTon);
+    const gasReserveStr = formatTon(GAS_RESERVE_TON);
     await notifyUser(
       deal.advertiser.telegramId,
-      `✅ <b>Refund sent!</b>\n\nDeal #${dealId}\nAmount: ${formatTon(fromNano(refundAmount))} TON\nTo: <code>${refundToAddress}</code>${txLine}`,
+      `✅ <b>Refund sent!</b>\n\nDeal #${dealId}\n\n💰 Deal price: ${dealPriceStr} TON\n⛽ Gas reserve: −${gasReserveStr} TON\n📤 Sent from escrow: ${refundStr} TON\n\n<i>Blockchain fee (~0.004 TON) is deducted by the network.</i>\n\nTo: <code>${refundToAddress}</code>${txLine}`,
     );
 
     console.log(`Pending refund executed for deal ${dealId}: ${onChainHash}`);
