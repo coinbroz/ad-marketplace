@@ -440,11 +440,6 @@ export async function executePendingRefund(dealId: number): Promise<string | nul
   }
   const publicKey = Buffer.from(deal.escrowWallet.publicKey, 'hex');
 
-  console.log(`Executing pending refund for deal ${dealId}: ${formatTon(fromNano(refundAmount))} TON → ${refundToAddress}`);
-  console.log(`  escrowAddress: ${deal.escrowAddress}`);
-  console.log(`  publicKey (hex): ${deal.escrowWallet.publicKey}`);
-  console.log(`  balance: ${formatTon(fromNano(balance))} TON, gasReserve: ${GAS_RESERVE_TON} TON, refundAmount: ${formatTon(fromNano(refundAmount))} TON`);
-
   const onChainHash = await sendFromEscrow({
     publicKey,
     secretKey,
@@ -481,9 +476,8 @@ export async function executePendingRefund(dealId: number): Promise<string | nul
       `✅ <b>Refund sent!</b>\n\nDeal #${dealId}\n\n💰 Deal price: ${dealPriceStr} TON\n⛽ Gas reserve: −${gasReserveStr} TON\n📤 Sent from escrow: ${refundStr} TON\n\n<i>Blockchain fee (~0.004 TON) is deducted by the network.</i>\n\nTo: <code>${refundToAddress}</code>${txLine}`,
     );
 
-    console.log(`Pending refund executed for deal ${dealId}: ${onChainHash}`);
   } else {
-    console.warn(`Pending refund for deal ${dealId}: transaction sent but hash not confirmed`);
+    console.warn(`Pending refund for deal ${dealId}: tx sent but hash not confirmed`);
   }
 
   return onChainHash;

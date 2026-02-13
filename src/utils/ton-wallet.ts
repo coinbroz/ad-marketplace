@@ -171,8 +171,6 @@ export async function sendFromEscrow(params: {
   const { publicKey, secretKey, toAddress, amount } = params;
 
   const endpoint = `${TON_ENDPOINT}/jsonRPC`;
-  console.log(`[sendFromEscrow] Starting: endpoint=${endpoint}, toAddress=${toAddress}, amount=${fromNano(amount)} TON`);
-  console.log(`[sendFromEscrow] publicKey length=${publicKey.length}, secretKey length=${secretKey.length}`);
 
   const client = new TonClient({
     endpoint,
@@ -182,7 +180,6 @@ export async function sendFromEscrow(params: {
   const wallet = WalletContractV4.create({ workchain: 0, publicKey });
   const isTestnet = config.TON_NETWORK === 'testnet';
   const escrowAddress = wallet.address.toString({ bounceable: false, testOnly: isTestnet });
-  console.log(`[sendFromEscrow] Reconstructed wallet address: ${escrowAddress}`);
 
   const contract = client.open(wallet);
 
@@ -190,9 +187,8 @@ export async function sendFromEscrow(params: {
   let seqno = 0;
   try {
     seqno = await contract.getSeqno();
-    console.log(`[sendFromEscrow] Got seqno: ${seqno}`);
-  } catch (err) {
-    console.log(`[sendFromEscrow] getSeqno failed (wallet not deployed yet), using seqno=0:`, err instanceof Error ? err.message : err);
+  } catch {
+    // Wallet not deployed yet — seqno=0 triggers stateInit (auto-deploy)
     seqno = 0;
   }
 
@@ -201,9 +197,7 @@ export async function sendFromEscrow(params: {
   for (let retry = 0; retry < maxRetries; retry++) {
     try {
       if (retry > 0) {
-        const delay = retry * 3000; // 3s, 6s
-        console.log(`[sendFromEscrow] Retry ${retry}/${maxRetries}, waiting ${delay}ms...`);
-        await new Promise(r => setTimeout(r, delay));
+        await new Promise(r => setTimeout(r, retry * 3000));
       }
       await contract.sendTransfer({
         seqno,
@@ -216,11 +210,10 @@ export async function sendFromEscrow(params: {
           }),
         ],
       });
-      console.log(`[sendFromEscrow] sendTransfer succeeded from ${escrowAddress} → ${toAddress}`);
       break;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[sendFromEscrow] sendTransfer attempt ${retry + 1} FAILED:`, errMsg);
+      console.error(`[sendFromEscrow] attempt ${retry + 1} failed:`, errMsg);
       if (errMsg.includes('429') && retry < maxRetries - 1) {
         continue; // Rate limited — retry
       }
@@ -240,7 +233,6 @@ export async function sendFromEscrow(params: {
           const txs = await getTransactions(escrowAddress, 1);
           const tx = txs[0] as { transaction_id?: { hash?: string } } | undefined;
           if (tx?.transaction_id?.hash) {
-            console.log(`TON transfer confirmed: ${tx.transaction_id.hash}`);
             return tx.transaction_id.hash;
           }
         } catch {
@@ -253,7 +245,6 @@ export async function sendFromEscrow(params: {
     }
   }
 
-  // Transaction sent but not confirmed within ~30s — may still confirm
-  console.warn(`TON transfer from ${escrowAddress} sent but not confirmed within 30s`);
+  // Transaction sent but not confirmed within ~45s — may still confirm
   return null;
 }

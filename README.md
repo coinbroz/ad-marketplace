@@ -198,7 +198,7 @@ Channel owners can add managers who can accept deals and submit creatives, but c
 
 3. **MTProto session** — Requires a user session (phone number auth) for `stats.getBroadcastStats`. The bot token alone cannot access channel statistics.
 
-4. **TON transactions** — Payment monitoring and balance checks work via toncenter API. Payout/refund transaction signing (deploy + send from escrow) is architectured but uses placeholder tx hashes. The escrow wallet keys are generated and encrypted — ready for full on-chain implementation.
+4. **TON transactions** — Full on-chain flow: payment monitoring, payout to channel owner, refund to advertiser — all work with real TON transfers. Gas reserve (0.05 TON) is deducted for wallet deployment + transfer fees. Notifications include transparent fee breakdown.
 
 5. **No dispute resolution UI** — Disputes are detected and logged (post deletion/edit), but manual resolution is needed. Future: voting/mediation system.
 

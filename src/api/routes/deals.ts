@@ -331,8 +331,7 @@ export async function dealRoutes(app: FastifyInstance) {
     // If deal is REFUNDED but TON wasn't actually sent (placeholder hash), retry now
     if (deal.status === 'REFUNDED' && deal.escrowAddress) {
       try {
-        const txHash = await executePendingRefund(dealId);
-        console.log(`Pending refund result for deal ${dealId}:`, txHash);
+        await executePendingRefund(dealId);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error(`Pending refund execution failed for deal ${dealId}:`, err);
