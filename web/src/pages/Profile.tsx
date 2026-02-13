@@ -72,19 +72,6 @@ export function ProfilePage({ user }: Props) {
                 setWalletAddress(me.tonWalletAddress || '');
                 setEditingWallet(true);
               }}
-              after={
-                <span
-                  style={{ fontSize: 11, color: 'var(--tg-theme-link-color, #3390ec)' }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigator.clipboard.writeText(me.tonWalletAddress || '');
-                    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
-                    window.Telegram?.WebApp?.showAlert?.('Wallet address copied!');
-                  }}
-                >
-                  Copy
-                </span>
-              }
             >
               <span style={{ fontSize: 13, fontFamily: 'monospace' }}>
                 {me.tonWalletAddress && me.tonWalletAddress.length > 20
