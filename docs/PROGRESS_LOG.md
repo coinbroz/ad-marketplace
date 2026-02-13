@@ -347,23 +347,65 @@ eb2e114 Fix deployment: optional HOT_WALLET_MNEMONIC, add initial migration
 
 ---
 
-## Remaining Plan (Feb 12-15)
+## Session 4 — Feb 11-12: Mainnet + Payment Fixes + E2E Testing
 
-### Priority 1: TON Actual Transactions (4-6h)
-Implement actual TON sending in `releaseFunds()` and `refundFunds()`:
-1. Hot wallet gas transfer to escrow
-2. Deploy escrow wallet contract
-3. Sign + send transfer (escrow → target)
-4. Test on testnet
+### Completed
+1. **Switched to mainnet** — `TON_NETWORK=mainnet` default in config.ts and .env.example
+2. **Language filter for campaigns** — backend validation + frontend filtering on Campaign page + Marketplace page
+3. **Fuzzy language matching** — exact, includes, or same 3-char prefix (handles typos like "Russain" vs "Russian")
+4. **Profile: wallet editing** — Change Wallet button, edit form with Save/Cancel, note about active deals
+5. **Profile: wallet address display** — truncated `10...10` format (was full address)
+6. **Payment page: TON Connect wallet management** — Disconnect, Switch Wallet buttons
+7. **Payment page: direct Tonkeeper deeplink** — TON Connect bridge unreliable in Telegram WebView, Pay button opens Tonkeeper directly
+8. **Payment tolerance** — accept payments within 0.01 TON of required (covers TON forwarding fees, e.g. 0.499999999 accepted as 0.5)
+9. **Partial payment notifications** — throttled via Redis (only on balance change, 10min cooldown). No more spam every minute.
+10. **Payment page: remaining amount** — shows received/required/remaining after partial payment, deeplink uses remaining amount
+11. **formatTon()** — clean number display, no scientific notation (was showing `1.000000027229198e-9`)
+12. **TX explorer link fix** — `getLatestIncomingTxHash` finds actual incoming payment (was picking up bounced fee-refund transactions)
+13. **Notification explorer link** — now links to escrow address page (always reliable) instead of specific transaction hash
 
-### Priority 2: Full Happy Path E2E (3-4h)
+### Commits (Session 4)
+```
+04d0dcf Switch to mainnet, add language filter for campaigns
+5c12052 Use fuzzy language matching for campaign filters
+12b2520 Allow changing TON wallet address in Profile
+9a4f41e Add wallet disconnect/switch on Payment page
+b9ef23a Truncate wallet address display in Profile (10...10 format)
+3dc3547 Fix TON Connect payment: remove network param, add fallback
+c32ddd9 Use direct Tonkeeper deeplink for Pay button in Telegram WebApp
+8cec5be Fix payment tolerance, throttle notifications, show remaining amount
+bd9c132 Fix tx explorer link: find incoming payment, not bounced fee refund
+```
+
+### E2E Testing Results (Mainnet)
+- ✅ Campaign create (with language, minSubscribers)
+- ✅ Campaign language filter (fuzzy matching works)
+- ✅ Campaign apply flow (channel owner → advertiser notification)
+- ✅ Payment: Tonkeeper deeplink opens correctly from Mini App
+- ✅ Payment: 0.5 TON sent, 0.499999999 received (tolerance accepted it as full)
+- ✅ Payment: FUNDED status transition + notifications
+- ✅ Cancel deal + refund: money returned to advertiser wallet
+- ⚠️ Explorer link showed FAILED TRANSFER (bounced fee-refund) — fixed in bd9c132
+- ⚠️ Partial payment notifications were spamming every minute — fixed in 8cec5be
+
+### TON Escrow Status: WORKING ON MAINNET ✅
+- `releaseFunds()` — implemented and tested (via refund path)
+- `refundFunds()` — **tested and confirmed working on mainnet** (user received TON back)
+- `sendFromEscrow()` — working with AES-256-GCM key decryption
+- Payment tolerance (0.01 TON) covers forwarding fees
+
+---
+
+## Remaining Plan (Feb 12-16)
+
+### Priority 1: Full Happy Path E2E (3-4h)
 With two Telegram accounts:
 1. Happy path: deal → pay → creative → approve → post → 24h verify → payout
-2. Cancel + refund address flow (already partially tested)
+2. ~~Cancel + refund address flow~~ ✅ TESTED
 3. Deal timeout/expiry worker verification
 4. Dispute scenario: post deletion before 24h
 
-### Priority 3: Final Polish + Submission (2h)
+### Priority 2: Final Polish + Submission (2h)
 - Screenshots of all pages
 - Final README review
 - Submit via @contests_app_bot
