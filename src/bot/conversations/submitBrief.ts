@@ -43,9 +43,9 @@ export async function submitBriefConversation(
     return;
   }
 
-  // List deals for selection
+  // List deals for selection (inline keyboard — always visible in the message)
   let dealListText = '📋 <b>Select a deal to submit your ad brief:</b>\n\n';
-  const keyboard: Array<Array<{ text: string }>> = [];
+  const inlineKeyboard: Array<Array<{ text: string; callback_data: string }>> = [];
 
   for (const deal of deals) {
     dealListText += `#${deal.id} — ${deal.channel.title} (${deal.priceInTon} TON)\n`;
@@ -53,30 +53,31 @@ export async function submitBriefConversation(
       dealListText += `  Current brief: ${deal.brief.slice(0, 50)}...\n`;
     }
     dealListText += '\n';
-    keyboard.push([{ text: `#${deal.id}` }]);
+    inlineKeyboard.push([{ text: `#${deal.id} — ${deal.channel.title}`, callback_data: `brief_${deal.id}` }]);
   }
 
-  keyboard.push([{ text: 'Cancel' }]);
+  inlineKeyboard.push([{ text: '❌ Cancel', callback_data: 'brief_cancel' }]);
 
   await ctx.reply(dealListText, {
     parse_mode: 'HTML',
-    reply_markup: { keyboard, one_time_keyboard: true, resize_keyboard: true },
+    reply_markup: { inline_keyboard: inlineKeyboard },
   });
 
-  // Wait for deal selection
-  const dealResponse = await conversation.waitFor('message:text');
-  const dealText = dealResponse.message.text;
+  // Wait for deal selection (inline button tap)
+  const dealResponse = await conversation.waitFor('callback_query:data');
+  await dealResponse.answerCallbackQuery();
+  const dealCallback = dealResponse.callbackQuery.data;
 
-  if (dealText === 'Cancel') {
-    await ctx.reply('Cancelled.', { reply_markup: { remove_keyboard: true } });
+  if (dealCallback === 'brief_cancel') {
+    await ctx.reply('Cancelled.');
     return;
   }
 
-  const dealId = parseInt(dealText.replace('#', ''), 10);
+  const dealId = parseInt(dealCallback.replace('brief_', ''), 10);
   const selectedDeal = deals.find((d) => d.id === dealId);
 
   if (!selectedDeal) {
-    await ctx.reply('Invalid deal. Please try again.', { reply_markup: { remove_keyboard: true } });
+    await ctx.reply('Invalid deal. Please try again.');
     return;
   }
 
@@ -85,7 +86,7 @@ export async function submitBriefConversation(
     `📋 <b>Deal #${dealId} — ${selectedDeal.channel.title}</b>\n\n` +
     'Send your ad brief below: describe what you want to advertise, key messages, requirements.\n\n' +
     'You can attach a photo, video, or document with your materials.',
-    { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } },
+    { parse_mode: 'HTML' },
   );
 
   // Wait for brief content
@@ -123,7 +124,7 @@ export async function submitBriefConversation(
     return;
   }
 
-  // Show preview
+  // Show preview with inline confirmation buttons
   let previewText = '👁 <b>Preview of your ad brief:</b>\n\n';
   previewText += briefText || '(no text)';
   if (mediaType) {
@@ -134,18 +135,21 @@ export async function submitBriefConversation(
   await ctx.reply(previewText, {
     parse_mode: 'HTML',
     reply_markup: {
-      keyboard: [[{ text: '✅ Send' }, { text: '❌ Cancel' }]],
-      one_time_keyboard: true,
-      resize_keyboard: true,
+      inline_keyboard: [
+        [
+          { text: '✅ Send', callback_data: 'brief_confirm' },
+          { text: '❌ Cancel', callback_data: 'brief_reject' },
+        ],
+      ],
     },
   });
 
   // Wait for confirmation
-  const confirmResponse = await conversation.waitFor('message:text');
-  const confirmText = confirmResponse.message.text;
+  const confirmResponse = await conversation.waitFor('callback_query:data');
+  await confirmResponse.answerCallbackQuery();
 
-  if (confirmText !== '✅ Send') {
-    await ctx.reply('Brief submission cancelled.', { reply_markup: { remove_keyboard: true } });
+  if (confirmResponse.callbackQuery.data !== 'brief_confirm') {
+    await ctx.reply('Brief submission cancelled.');
     return;
   }
 
@@ -168,7 +172,7 @@ export async function submitBriefConversation(
         dealId, channel: selectedDeal.channel.title,
         hint: 'The channel owner will create a post based on your brief.',
       }),
-      { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } },
+      { parse_mode: 'HTML' },
     );
 
     // Notify channel owner with brief
@@ -205,6 +209,6 @@ export async function submitBriefConversation(
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Submission failed';
-    await ctx.reply(`❌ Error: ${message}`, { reply_markup: { remove_keyboard: true } });
+    await ctx.reply(`❌ Error: ${message}`);
   }
 }
