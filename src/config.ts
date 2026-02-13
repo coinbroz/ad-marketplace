@@ -55,12 +55,12 @@ export const TON_ENDPOINT = config.TON_NETWORK === 'mainnet'
 
 // Deal timeouts (in hours)
 export const DEAL_TIMEOUTS: Record<string, number> = {
-  PENDING: 48,
+  PENDING: 24,
   ACCEPTED: 24,
   AWAITING_PAYMENT: 24,
   FUNDED: 24,
-  CREATIVE_DRAFT: 72,
-  CREATIVE_REVIEW: 48,
+  CREATIVE_DRAFT: 24,
+  CREATIVE_REVIEW: 24,
   CREATIVE_APPROVED: 24,
   SCHEDULED: 24,
 };

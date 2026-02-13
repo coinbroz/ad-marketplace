@@ -294,11 +294,7 @@ EXPIRED         → [] (terminal)
 ```
 
 Таймауты для каждого статуса:
-- `PENDING` → 48h
-- `ACCEPTED` / `AWAITING_PAYMENT` → 24h
-- `FUNDED` / `CREATIVE_DRAFT` → 72h
-- `CREATIVE_REVIEW` → 48h
-- `CREATIVE_APPROVED` / `SCHEDULED` → 24h
+- All statuses → 24h (auto-cancel on inactivity)
 
 ## Two-Sided Marketplace Flow
 
