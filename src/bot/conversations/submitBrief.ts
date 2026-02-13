@@ -190,7 +190,11 @@ export async function submitBriefConversation(
     });
 
     await conversation.external(() =>
-      notifyUser(selectedDeal.channelOwner.telegramId, notifyText),
+      notifyUser(selectedDeal.channelOwner.telegramId, notifyText, {
+        reply_markup: {
+          inline_keyboard: [[{ text: '🎨 Submit Creative', callback_data: 'cmd_submitcreative' }]],
+        },
+      }),
     );
 
     // If media was attached, forward it to the channel owner

@@ -132,7 +132,11 @@ export async function checkDealPayment(dealId: number): Promise<boolean> {
     });
 
     await Promise.all([
-      notifyUser(deal.advertiser.telegramId, advertiserMsg),
+      notifyUser(deal.advertiser.telegramId, advertiserMsg, {
+        reply_markup: {
+          inline_keyboard: [[{ text: '📋 Submit Brief', callback_data: 'cmd_submitbrief' }]],
+        },
+      }),
       notifyUser(deal.channelOwner.telegramId, ownerMsg),
     ]);
 
