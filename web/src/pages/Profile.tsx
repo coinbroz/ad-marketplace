@@ -66,25 +66,32 @@ export function ProfilePage({ user }: Props) {
       <Section header="TON Wallet">
         {me.tonWalletAddress && !editingWallet ? (
           <>
-            <Cell subtitle="Connected wallet">
+            <Cell
+              subtitle="Connected wallet (tap to edit)"
+              onClick={() => {
+                setWalletAddress(me.tonWalletAddress || '');
+                setEditingWallet(true);
+              }}
+              after={
+                <span
+                  style={{ fontSize: 11, color: 'var(--tg-theme-link-color, #3390ec)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(me.tonWalletAddress || '');
+                    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+                    window.Telegram?.WebApp?.showAlert?.('Wallet address copied!');
+                  }}
+                >
+                  Copy
+                </span>
+              }
+            >
               <span style={{ fontSize: 13, fontFamily: 'monospace' }}>
                 {me.tonWalletAddress && me.tonWalletAddress.length > 20
                   ? `${me.tonWalletAddress.slice(0, 10)}...${me.tonWalletAddress.slice(-10)}`
                   : me.tonWalletAddress}
               </span>
             </Cell>
-            <div style={{ padding: '4px 16px 8px' }}>
-              <Button
-                size="s"
-                mode="outline"
-                onClick={() => {
-                  setWalletAddress(me.tonWalletAddress || '');
-                  setEditingWallet(true);
-                }}
-              >
-                Change Wallet
-              </Button>
-            </div>
           </>
         ) : (
           <>
