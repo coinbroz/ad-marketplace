@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Section, Cell, Button, Placeholder } from '@telegram-apps/telegram-ui';
 import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { getDeal, getEscrowInfo, getAppConfig } from '../api/client';
+import { getDeal, getEscrowInfo } from '../api/client';
 
 /** Format TON cleanly: no scientific notation, trim trailing zeros */
 function formatTon(amount: number): string {
@@ -40,12 +40,6 @@ export function PaymentPage() {
     refetchInterval: 5000,
   });
 
-  const { data: appConfig } = useQuery({
-    queryKey: ['appConfig'],
-    queryFn: getAppConfig,
-    staleTime: Infinity,
-  });
-
   // Auto-redirect when payment received
   if (deal?.status === 'FUNDED') {
     window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
@@ -63,13 +57,8 @@ export function PaymentPage() {
   const payAmountTon = hasPartialPayment ? remaining : deal.priceInTon;
   const payAmountNano = Math.round(payAmountTon * 1e9).toString();
 
-  const isTestnet = appConfig?.tonNetwork !== 'mainnet';
-
   // QR fallback for manual scanning (simple transfer, no stateInit)
   const qrUrl = `ton://transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}`;
-
-  // Direct Tonkeeper URL — no stateInit, no contract deploy, just a clean transfer
-  const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${escrow.address}?amount=${payAmountNano}&text=Deal%23${dealId}${isTestnet ? '&network=testnet' : ''}`;
 
   const copyAddress = () => {
     if (escrow.address) {
@@ -79,14 +68,23 @@ export function PaymentPage() {
     }
   };
 
-  // Open Tonkeeper directly — no intermediate TonConnect modal
-  const handlePay = () => {
+  // Pay via TonConnect sendTransaction — exactly 1 message, no stateInit, no extra on-chain activity
+  const handlePay = async () => {
+    if (!escrow.address) return;
     setPaymentInitiated(true);
-    const tg = window.Telegram?.WebApp as Record<string, unknown> | undefined;
-    if (tg && typeof tg.openLink === 'function') {
-      (tg.openLink as (url: string) => void)(tonkeeperUrl);
-    } else {
-      window.open(tonkeeperUrl, '_blank');
+    try {
+      await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 300, // 5 min
+        messages: [
+          {
+            address: escrow.address,
+            amount: payAmountNano,
+          },
+        ],
+      });
+    } catch (err) {
+      // User cancelled or error — keep paymentInitiated true so they can retry
+      console.error('Payment error:', err);
     }
   };
 
