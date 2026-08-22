@@ -421,7 +421,7 @@ Service ID:     988e3fdd-8264-48a8-9bbe-8d11509152f9
 Domain:         ad-marketplace-production.up.railway.app
 Railway Token:  cfa1ee6f-2ed7-476e-8afd-4bb496af42f0
 Bot:            @channelescrow_bot
-Bot Token:      8340665648:AAHKR4UTgekKeW0OarwA_QmWuTWad4cU3Mk
+Bot Token:      8340665648:[REVOKED - token was leaked here, revoked and rotated]
 ```
 
 ---
